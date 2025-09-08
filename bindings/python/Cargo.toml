@@ -1,0 +1,14 @@
+[package]
+name = "pyopenpathresolver"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[lib]
+name = "openpathresolver"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = { version = "0.26.0", features = ["abi3-py39"] }
+base_openpathresolver = { path = "../../", package = "openpathresolver" }
+regex = "1.11.2"
