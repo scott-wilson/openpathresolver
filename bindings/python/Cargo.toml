@@ -5,10 +5,15 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [lib]
-name = "openpathresolver"
 crate-type = ["cdylib"]
+name = "openpathresolver"
 
 [dependencies]
-pyo3 = { version = "0.26.0", features = ["abi3-py39"] }
-base_openpathresolver = { path = "../../", package = "openpathresolver" }
-regex = "1.11.2"
+async-trait = "0.1.89"
+base_openpathresolver = { package = "openpathresolver", path = "../../" }
+pyo3 = { version = "0.27.2", features = ["abi3-py39"] }
+pyo3-async-runtimes = { version = "0.27.0", features = [
+  "attributes",
+  "tokio-runtime"
+] }
+regex = "1.12.2"

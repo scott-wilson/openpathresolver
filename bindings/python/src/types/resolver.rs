@@ -12,6 +12,11 @@ impl StringResolver {
     fn new(pattern: Option<String>) -> Self {
         Self { pattern }
     }
+
+    #[getter]
+    fn pattern(&self) -> &Option<String> {
+        &self.pattern
+    }
 }
 
 #[derive(Debug, FromPyObject)]
@@ -26,18 +31,9 @@ impl IntegerResolver {
     fn new(padding: u8) -> Self {
         Self { padding }
     }
-}
 
-#[derive(Debug, Clone)]
-#[pyclass]
-pub struct EntityResolver {
-    pub(crate) key: String,
-}
-
-#[pymethods]
-impl EntityResolver {
-    #[new]
-    fn new(key: String) -> Self {
-        Self { key }
+    #[getter]
+    fn padding(&self) -> u8 {
+        self.padding
     }
 }

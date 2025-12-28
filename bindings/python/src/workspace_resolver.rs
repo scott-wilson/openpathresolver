@@ -7,38 +7,66 @@ type TemplateAttributes = std::collections::HashMap<String, crate::TemplateValue
 
 #[pyfunction]
 pub fn create_workspace<'py>(
-    config: &crate::Config,
+    py: Python<'py>,
+    config: crate::Config,
     path_fields: PathAttributes,
     template_fields: TemplateAttributes,
-    io_function: Bound<'py, PyAny>,
-) -> PyResult<()> {
-    let io_function_wrapper = |_c: &base_openpathresolver::Config,
-                               i: &base_openpathresolver::ResolvedPathItem,
-                               a: &std::collections::HashMap<
-        base_openpathresolver::FieldKey,
-        base_openpathresolver::TemplateValue,
-    >|
-     -> Result<(), base_openpathresolver::Error> {
-        let i = crate::ResolvedPathItem { inner: i.clone() };
-        let a = convert_fields_from_base(a.clone())
+    io_function: Py<PyAny>,
+) -> PyResult<Bound<'py, PyAny>> {
+    let path_fields = crate::path_resolver::convert_fields_from_wrapper(path_fields)?;
+    let template_fields = convert_fields_from_wrapper(template_fields)?;
+
+    struct CreateWorkspaceIoFunctionWrapper(Py<PyAny>, pyo3_async_runtimes::TaskLocals);
+
+    #[async_trait::async_trait]
+    impl base_openpathresolver::CreateWorkspaceIoFunction for CreateWorkspaceIoFunctionWrapper {
+        async fn call(
+            &self,
+            config: std::sync::Arc<base_openpathresolver::Config>,
+            template_fields: std::sync::Arc<
+                std::collections::HashMap<
+                    base_openpathresolver::FieldKey,
+                    base_openpathresolver::TemplateValue,
+                >,
+            >,
+            path_item: base_openpathresolver::ResolvedPathItem,
+        ) -> Result<(), base_openpathresolver::Error> {
+            // TODO: This is probably not efficient. Could probably get the values straight from
+            // the create_workspace args.
+            let template_fields = std::sync::Arc::unwrap_or_clone(template_fields);
+            let template_fields = convert_fields_from_base(template_fields)
+                .map_err(|err| base_openpathresolver::Error::RuntimeError(err.to_string()))?;
+            Python::attach(|py| -> PyResult<_> {
+                let awaitable = self.0.call(
+                    py,
+                    (
+                        crate::Config { inner: config },
+                        template_fields,
+                        crate::ResolvedPathItem { inner: path_item },
+                    ),
+                    None,
+                )?;
+                pyo3_async_runtimes::into_future_with_locals(&self.1, awaitable.bind(py).clone())
+            })
+            .map_err(|err| base_openpathresolver::Error::RuntimeError(err.to_string()))?
+            .await
             .map_err(|err| base_openpathresolver::Error::RuntimeError(err.to_string()))?;
 
-        // TODO: I want to avoid having to copy the config every time the wrapper function is
-        // called, which could be a lot.
-        io_function
-            .call((config.clone(), i, a), None)
-            .map_err(|err| base_openpathresolver::Error::RuntimeError(err.to_string()))?;
+            Ok(())
+        }
+    }
 
-        Ok(())
-    };
-
-    base_openpathresolver::create_workspace(
-        &config.inner,
-        &crate::path_resolver::convert_fields_from_wrapper(path_fields)?,
-        &convert_fields_from_wrapper(template_fields)?,
-        io_function_wrapper,
-    )
-    .map_err(|err| to_py_error(&err))
+    let task_locals = pyo3_async_runtimes::tokio::get_current_locals(py)?;
+    pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        base_openpathresolver::create_workspace(
+            config.inner.clone(),
+            &path_fields,
+            std::sync::Arc::new(template_fields),
+            CreateWorkspaceIoFunctionWrapper(io_function, task_locals),
+        )
+        .await
+        .map_err(|err| to_py_error(&err))
+    })
 }
 
 #[pyfunction]
@@ -74,8 +102,7 @@ pub(crate) fn convert_fields_from_wrapper(
     for (key, value) in fields {
         let key =
             base_openpathresolver::FieldKey::try_from(key).map_err(|err| to_py_error(&err))?;
-        let value = base_openpathresolver::TemplateValue::try_from(value)
-            .map_err(|err| to_py_error(&err))?;
+        let value = base_openpathresolver::TemplateValue::from(value);
 
         converted_fields.insert(key, value);
     }
@@ -93,7 +120,7 @@ pub(crate) fn convert_fields_from_base(
 
     for (key, value) in fields {
         let key = crate::FieldKey::try_from(key)?;
-        let value = crate::TemplateValue::try_from(value)?;
+        let value = crate::TemplateValue::from(value);
 
         converted_fields.insert(key, value);
     }

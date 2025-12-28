@@ -19,12 +19,17 @@ pub fn get_fields(
     config: &crate::Config,
     key: &str,
     path: std::path::PathBuf,
-) -> PyResult<Option<std::collections::HashMap<crate::FieldKey, crate::PathValue>>> {
+) -> PyResult<Option<std::collections::HashMap<String, crate::PathValue>>> {
     let result = base_openpathresolver::get_fields(&config.inner, key, path)
         .map_err(|err| to_py_error(&err))?;
 
     match result {
-        Some(fields) => Ok(Some(convert_fields_from_base(fields)?)),
+        Some(fields) => Ok(Some(
+            convert_fields_from_base(fields)?
+                .into_iter()
+                .map(|(k, v)| (k.inner.as_str().to_owned(), v))
+                .collect(),
+        )),
         None => Ok(None),
     }
 }
@@ -34,13 +39,13 @@ pub fn get_key(
     config: &crate::Config,
     path: std::path::PathBuf,
     fields: PathAttributes,
-) -> PyResult<Option<crate::FieldKey>> {
+) -> PyResult<Option<String>> {
     let result =
         base_openpathresolver::get_key(&config.inner, &path, &convert_fields_from_wrapper(fields)?)
             .map_err(|err| to_py_error(&err))?;
 
     match result {
-        Some(key) => Ok(Some(crate::FieldKey::try_from(key.clone())?)),
+        Some(key) => Ok(Some(key.as_str().to_owned())),
         None => Ok(None),
     }
 }
@@ -65,8 +70,7 @@ pub(crate) fn convert_fields_from_wrapper(
     for (key, value) in fields {
         let key =
             base_openpathresolver::FieldKey::try_from(key).map_err(|err| to_py_error(&err))?;
-        let value =
-            base_openpathresolver::PathValue::try_from(value).map_err(|err| to_py_error(&err))?;
+        let value = base_openpathresolver::PathValue::from(value);
 
         converted_fields.insert(key, value);
     }
@@ -84,7 +88,7 @@ pub(crate) fn convert_fields_from_base(
 
     for (key, value) in fields {
         let key = crate::FieldKey::try_from(key)?;
-        let value = crate::PathValue::try_from(value)?;
+        let value = crate::PathValue::from(value);
 
         converted_fields.insert(key, value);
     }

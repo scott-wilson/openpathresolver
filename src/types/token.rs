@@ -114,6 +114,15 @@ impl Token {
             }
         }
     }
+
+    fn draw_glob_pattern(&self, buf: &mut impl std::fmt::Write) -> Result<(), crate::Error> {
+        match self {
+            Token::Literal(literal) => buf.write_str(literal)?,
+            Token::Variable(_) => buf.write_char('*')?,
+        };
+
+        Ok(())
+    }
 }
 
 impl std::fmt::Display for Token {
@@ -182,6 +191,16 @@ impl Tokens {
     ) -> Result<(), crate::Error> {
         for token in self.tokens.iter() {
             token.draw_regex_pattern(buf, resolvers)?;
+        }
+        Ok(())
+    }
+
+    pub(crate) fn draw_glob_pattern(
+        &self,
+        buf: &mut impl std::fmt::Write,
+    ) -> Result<(), crate::Error> {
+        for token in self.tokens.iter() {
+            token.draw_glob_pattern(buf)?;
         }
         Ok(())
     }

@@ -1,81 +1,13 @@
-use crate::types::{
-    CopyFile, FieldKey, Owner, PathItem, PathItemBuilder, Permission, Resolver, Resolvers, Tokens,
-};
+use crate::types::{FieldKey, PathItem, PathItemArgs, Resolver, Resolvers, Tokens};
 
 #[derive(Debug, Clone)]
 pub struct Config {
     pub(crate) resolvers: Resolvers,
     pub(crate) item_map: std::collections::HashMap<FieldKey, usize>,
     pub(crate) items: Vec<PathItem>,
-    pub(crate) template_map: std::collections::HashMap<FieldKey, String>,
 }
 
 impl Config {
-    pub fn write_template_to_writer(
-        &self,
-        key: impl TryInto<FieldKey, Error = crate::Error>,
-        template_fields: &crate::types::TemplateAttributes,
-        writer: &mut impl std::io::Write,
-    ) -> Result<(), crate::Error> {
-        let key = key.try_into()?;
-
-        let mut context = std::collections::HashMap::with_capacity(template_fields.len());
-
-        for (template_key, template_value) in template_fields.iter() {
-            context.insert(
-                template_key.as_str(),
-                minijinja::Value::from_serialize(template_value),
-            );
-        }
-
-        let context = minijinja::Value::from(context);
-
-        let template_str = match self.template_map.get(&key) {
-            Some(t) => t,
-            None => return Err(crate::Error::FieldError(key.to_string())),
-        };
-
-        let mut environment = minijinja::Environment::empty();
-
-        environment.add_template(key.as_str(), template_str)?;
-        let template = environment.get_template(key.as_str())?;
-
-        template.render_to_write(context, writer)?;
-
-        Ok(())
-    }
-
-    pub fn write_template_to_string(
-        &self,
-        key: impl TryInto<FieldKey, Error = crate::Error>,
-        template_fields: &crate::types::TemplateAttributes,
-    ) -> Result<String, crate::Error> {
-        let key = key.try_into()?;
-
-        let mut context = std::collections::HashMap::with_capacity(template_fields.len());
-
-        for (template_key, template_value) in template_fields.iter() {
-            context.insert(
-                template_key.as_str(),
-                minijinja::Value::from_serialize(template_value),
-            );
-        }
-
-        let context = minijinja::Value::from(context);
-
-        let template_str = match self.template_map.get(&key) {
-            Some(t) => t,
-            None => return Err(crate::Error::FieldError(key.to_string())),
-        };
-
-        let mut environment = minijinja::Environment::empty();
-
-        environment.add_template(key.as_str(), template_str)?;
-        let template = environment.get_template(key.as_str())?;
-
-        Ok(template.render(context)?)
-    }
-
     pub(crate) fn get_item(&self, key: &FieldKey) -> Option<Vec<&PathItem>> {
         let last_id = match self.item_map.get(key) {
             Some(id) => *id,
@@ -103,8 +35,7 @@ impl Config {
 #[derive(Debug, Default)]
 pub struct ConfigBuilder {
     resolvers: Resolvers,
-    items: std::collections::HashMap<FieldKey, PathItemBuilder>,
-    template_map: std::collections::HashMap<FieldKey, String>,
+    items: std::collections::HashMap<FieldKey, PathItemArgs>,
 }
 
 impl ConfigBuilder {
@@ -112,7 +43,6 @@ impl ConfigBuilder {
         Self {
             resolvers: std::collections::HashMap::new(),
             items: std::collections::HashMap::new(),
-            template_map: std::collections::HashMap::new(),
         }
     }
 
@@ -143,71 +73,44 @@ impl ConfigBuilder {
         Ok(self)
     }
 
-    pub fn add_entity_resolver(
-        mut self,
-        key: impl TryInto<crate::FieldKey, Error = crate::Error>,
-        entity: &str,
-    ) -> Result<Self, crate::Error> {
-        self.resolvers.insert(
-            key.try_into()?,
-            Resolver::Entity {
-                key: entity.try_into()?,
-            },
-        );
+    pub fn add_path_item(mut self, args: crate::PathItemArgs) -> Result<Self, crate::Error> {
+        if self.items.contains_key(&args.key) {
+            return Err(crate::Error::FieldError(format!(
+                "'{}' already in path items.",
+                args.key
+            )));
+        }
+
+        self.items.insert(args.key.clone(), args);
         Ok(self)
     }
 
-    #[allow(clippy::too_many_arguments)]
-    pub fn add_path_item(
-        mut self,
-        key: impl TryInto<crate::FieldKey, Error = crate::Error>,
-        path: impl AsRef<std::path::Path>,
-        parent: Option<&str>,
-        permission: &Permission,
-        owner: &Owner,
-        copy_file: &CopyFile,
-        deferred: bool,
-    ) -> Result<Self, crate::Error> {
-        let parent = match parent {
-            Some(parent) => Some(parent.try_into()?),
-            None => None,
-        };
-        let key: FieldKey = key.try_into()?;
-
-        self.items.insert(
-            key.clone(),
-            PathItemBuilder {
-                key,
-                value: path.as_ref().to_path_buf(),
-                parent,
-                permission: *permission,
-                owner: owner.clone(),
-                copy_file: copy_file.clone(),
-                deferred,
-            },
-        );
-        Ok(self)
-    }
-
-    pub fn add_template(
-        mut self,
-        key: impl TryInto<crate::FieldKey, Error = crate::Error>,
-        value: &str,
-    ) -> Result<Self, crate::Error> {
-        let key: FieldKey = key.try_into()?;
-        self.template_map.insert(key, value.to_string());
-        Ok(self)
-    }
-
-    pub fn build(self) -> Result<Config, crate::Error> {
-        let mut items: Vec<PathItem> = Vec::new();
-        let mut item_map: std::collections::HashMap<FieldKey, usize> =
-            std::collections::HashMap::new();
-
+    pub fn build(mut self) -> Result<Config, crate::Error> {
         // Find items with parents that cause infinite recursion errors.
         let mut queue = std::collections::VecDeque::new();
         let mut visited = std::collections::HashSet::new();
         let mut validated = std::collections::HashSet::new();
+        let mut parent_resolved_path_items_map = std::collections::BTreeMap::new();
+        let mut visited_paths = std::collections::HashSet::new();
+
+        fn recursive_build_path<'a>(
+            path_part: &'a std::path::Path,
+            parent_key: &'a Option<FieldKey>,
+            item_map: &'a std::collections::HashMap<FieldKey, PathItemArgs>,
+        ) -> std::borrow::Cow<'a, std::path::Path> {
+            let parent_key = match parent_key {
+                Some(parent_key) => parent_key,
+                None => return path_part.into(),
+            };
+            let parent_item_args = match item_map.get(parent_key) {
+                Some(item_args) => item_args,
+                None => return path_part.into(),
+            };
+            let parent_path_part =
+                recursive_build_path(&parent_item_args.path, &parent_item_args.parent, item_map);
+
+            parent_path_part.join(path_part).into()
+        }
 
         for (key, item) in self.items.iter() {
             if validated.contains(key) {
@@ -218,8 +121,7 @@ impl ConfigBuilder {
             visited.clear();
             queue.push_back(item);
 
-            while !queue.is_empty() {
-                let item = queue.pop_front().unwrap();
+            while let Some(item) = queue.pop_front() {
                 validated.insert(&item.key);
                 visited.insert(&item.key);
 
@@ -240,77 +142,161 @@ impl ConfigBuilder {
                     None => continue,
                 }
             }
-        }
 
-        for (key, item) in self.items.iter() {
             if let Some(parent) = &item.parent {
                 if !self.items.contains_key(parent) {
                     return Err(crate::Error::MissingParentError(parent.clone()));
                 }
             }
+        }
 
-            self.recursive_build_path_item(key, item, &mut items, &mut item_map)?;
+        let mut key_path_map = std::collections::HashMap::new();
+
+        for (key, item) in self.items.iter() {
+            let key = key.to_owned();
+            let path = recursive_build_path(&item.path, &item.parent, &self.items).to_path_buf();
+            key_path_map.insert(key, path);
+        }
+
+        for (key, path) in key_path_map.into_iter() {
+            if let Some(item_args) = self.items.get_mut(&key) {
+                item_args.path = path;
+            }
+        }
+
+        let mut key_path_map = std::collections::HashMap::new();
+
+        for (key, item) in self.items.iter() {
+            key_path_map.insert(key, &item.path);
+
+            let path: &std::path::Path = item.path.as_ref();
+            let parent_path_items = parent_resolved_path_items_map
+                .entry(path.parent())
+                .or_insert(Vec::new());
+
+            if visited_paths.contains(&Some(path)) {
+                continue;
+            }
+
+            visited_paths.insert(Some(path));
+            let name = match path.file_name() {
+                Some(name) => name.to_string_lossy(),
+                None => path.to_string_lossy(),
+            };
+            parent_path_items.push(PathItem {
+                path: Tokens::new(&name)?,
+                parent: None,
+                permission: item.permission,
+                owner: item.owner,
+                path_type: item.path_type,
+                deferred: item.deferred,
+                metadata: item.metadata.clone(),
+            });
+
+            let mut path: &std::path::Path = item.path.as_ref();
+
+            while let Some(parent) = path.parent() {
+                if visited_paths.contains(&Some(path)) {
+                    path = parent;
+                    continue;
+                }
+                visited_paths.insert(Some(path));
+
+                let parent_path_items = {
+                    if parent.components().next_back().is_some() {
+                        parent_resolved_path_items_map
+                            .entry(Some(parent))
+                            .or_insert(Vec::new())
+                    } else {
+                        visited_paths.insert(None);
+                        parent_resolved_path_items_map
+                            .entry(None)
+                            .or_insert(Vec::new())
+                    }
+                };
+
+                let name = match path.file_name() {
+                    Some(name) => name.to_string_lossy(),
+                    None => path.to_string_lossy(),
+                };
+
+                parent_path_items.push(PathItem {
+                    path: Tokens::new(&name)?,
+                    parent: None,
+                    permission: crate::Permission::default(),
+                    owner: crate::Owner::default(),
+                    path_type: crate::PathType::default(),
+                    deferred: false,
+                    metadata: std::collections::HashMap::new(),
+                });
+
+                path = parent;
+            }
+
+            let parent_path_items = parent_resolved_path_items_map
+                .entry(None)
+                .or_insert(Vec::new());
+
+            if !visited_paths.contains(&None) {
+                let name = match path.file_name() {
+                    Some(name) => name.to_string_lossy(),
+                    None => path.to_string_lossy(),
+                };
+                parent_path_items.push(PathItem {
+                    path: Tokens::new(&name)?,
+                    parent: None,
+                    permission: crate::Permission::default(),
+                    owner: crate::Owner::default(),
+                    path_type: crate::PathType::default(),
+                    deferred: false,
+                    metadata: std::collections::HashMap::new(),
+                });
+
+                visited_paths.insert(None);
+            }
+        }
+
+        let mut parent_index_map = std::collections::HashMap::new();
+        let mut items: Vec<PathItem> = Vec::new();
+        let mut item_map: std::collections::HashMap<FieldKey, usize> =
+            std::collections::HashMap::new();
+
+        for (parent, parent_items) in parent_resolved_path_items_map.into_iter() {
+            let parent_id = parent_index_map
+                .get(&parent.map(|p| p.to_path_buf()))
+                .copied();
+
+            for mut parent_item in parent_items {
+                parent_item.parent = parent_id;
+
+                let path = match parent {
+                    Some(p) => p.to_path_buf(),
+                    None => std::path::PathBuf::new(),
+                }
+                .join(parent_item.path.to_string());
+                parent_index_map.insert(Some(path), items.len());
+                items.push(parent_item);
+            }
+        }
+
+        for (key, path) in key_path_map {
+            if let Some(parent_index) = parent_index_map.get(&Some(path.to_path_buf())) {
+                item_map.insert(key.clone(), *parent_index);
+            }
         }
 
         Ok(Config {
             resolvers: self.resolvers,
-            template_map: self.template_map,
             items,
             item_map,
         })
-    }
-
-    fn recursive_build_path_item(
-        &self,
-        key: &FieldKey,
-        item: &PathItemBuilder,
-        items: &mut Vec<PathItem>,
-        key_map: &mut std::collections::HashMap<FieldKey, usize>,
-    ) -> Result<usize, crate::Error> {
-        let mut parent = match &item.parent {
-            Some(parent_key) => match key_map.get(parent_key) {
-                // Item already exists in key map.
-                Some(parent_id) => Some(*parent_id),
-                // Item doesn't exist in key map, so recursively build it.
-                None => {
-                    let parent = self.items.get(parent_key).unwrap();
-                    let last_id =
-                        self.recursive_build_path_item(parent_key, parent, items, key_map)?;
-
-                    Some(last_id)
-                }
-            },
-            None => None,
-        };
-
-        for component in item.value.iter() {
-            let value = Tokens::new(&component.to_string_lossy())?;
-            let permission = item.permission;
-            let owner = item.owner.clone();
-            let copy_file = item.copy_file.clone();
-            let deferred = item.deferred;
-
-            let path_item = PathItem {
-                value,
-                parent,
-                permission,
-                owner,
-                copy_file,
-                deferred,
-            };
-            items.push(path_item);
-
-            parent = Some(items.len() - 1);
-        }
-
-        key_map.insert(key.clone(), items.len() - 1);
-
-        Ok(items.len() - 1)
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::{Owner, PathType, Permission};
+
     use super::*;
 
     #[rstest::rstest]
@@ -337,26 +323,18 @@ mod tests {
     }
 
     #[test]
-    fn test_config_builder_add_entity_resolver_success() {
-        ConfigBuilder::new()
-            .add_entity_resolver("key", "entity")
-            .unwrap()
-            .build()
-            .unwrap();
-    }
-
-    #[test]
     fn test_config_builder_add_path_item_success() {
         ConfigBuilder::new()
-            .add_path_item(
-                "key",
-                "path",
-                None,
-                &Permission::default(),
-                &Owner::default(),
-                &CopyFile::default(),
-                false,
-            )
+            .add_path_item(PathItemArgs {
+                key: "key".try_into().unwrap(),
+                path: "path".into(),
+                parent: None,
+                permission: Permission::default(),
+                owner: Owner::default(),
+                path_type: PathType::default(),
+                deferred: false,
+                metadata: std::collections::HashMap::new(),
+            })
             .unwrap()
             .build()
             .unwrap();
@@ -365,105 +343,67 @@ mod tests {
     #[test]
     fn test_config_builder_add_path_item_with_parent_success() {
         ConfigBuilder::new()
-            .add_path_item(
-                "parent",
-                "/parent/path",
-                None,
-                &Permission::default(),
-                &Owner::default(),
-                &CopyFile::default(),
-                false,
-            )
+            .add_path_item(PathItemArgs {
+                key: "parent".try_into().unwrap(),
+                path: "/parent/path".into(),
+                parent: None,
+                permission: Permission::default(),
+                owner: Owner::default(),
+                path_type: PathType::default(),
+                deferred: false,
+                metadata: std::collections::HashMap::new(),
+            })
             .unwrap()
-            .add_path_item(
-                "child",
-                "child/path",
-                Some("parent"),
-                &Permission::default(),
-                &Owner::default(),
-                &CopyFile::default(),
-                false,
-            )
+            .add_path_item(PathItemArgs {
+                key: "child".try_into().unwrap(),
+                path: "child/path".into(),
+                parent: Some("parent".try_into().unwrap()),
+                permission: Permission::default(),
+                owner: Owner::default(),
+                path_type: PathType::default(),
+                deferred: false,
+                metadata: std::collections::HashMap::new(),
+            })
             .unwrap()
             .build()
             .unwrap();
     }
 
     #[test]
-    fn test_config_builder_add_path_item_failure_invalid_parent_key() {
-        let err = ConfigBuilder::new()
-            .add_path_item(
-                "key",
-                "path",
-                Some("!"),
-                &Permission::default(),
-                &Owner::default(),
-                &CopyFile::default(),
-                false,
-            )
-            .unwrap_err();
-
-        match err {
-            crate::Error::ParseError(msg) => {
-                assert_eq!(msg, "Invalid field key");
-            }
-            _ => panic!("Unexpected error type."),
-        }
-    }
-
-    #[test]
-    fn test_config_builder_add_path_item_failure_invalid_key() {
-        let err = ConfigBuilder::new()
-            .add_path_item(
-                "!",
-                "path",
-                None,
-                &Permission::default(),
-                &Owner::default(),
-                &CopyFile::default(),
-                false,
-            )
-            .unwrap_err();
-        match err {
-            crate::Error::ParseError(msg) => {
-                assert_eq!(msg, "Invalid field key");
-            }
-            _ => panic!("Unexpected error type."),
-        }
-    }
-
-    #[test]
     fn test_config_builder_build_parent_with_multiple_children_success() {
         ConfigBuilder::new()
-            .add_path_item(
-                "parent",
-                "/parent/path",
-                None,
-                &Permission::default(),
-                &Owner::default(),
-                &CopyFile::default(),
-                false,
-            )
+            .add_path_item(PathItemArgs {
+                key: "parent".try_into().unwrap(),
+                path: "/parent/path".into(),
+                parent: None,
+                permission: Permission::default(),
+                owner: Owner::default(),
+                path_type: PathType::default(),
+                deferred: false,
+                metadata: std::collections::HashMap::new(),
+            })
             .unwrap()
-            .add_path_item(
-                "child1",
-                "child1/path",
-                Some("parent"),
-                &Permission::default(),
-                &Owner::default(),
-                &CopyFile::default(),
-                false,
-            )
+            .add_path_item(PathItemArgs {
+                key: "child1".try_into().unwrap(),
+                path: "child1/path".into(),
+                parent: Some("parent".try_into().unwrap()),
+                permission: Permission::default(),
+                owner: Owner::default(),
+                path_type: PathType::default(),
+                deferred: false,
+                metadata: std::collections::HashMap::new(),
+            })
             .unwrap()
-            .add_path_item(
-                "child2",
-                "child2/path",
-                Some("parent"),
-                &Permission::default(),
-                &Owner::default(),
-                &CopyFile::default(),
-                false,
-            )
+            .add_path_item(PathItemArgs {
+                key: "child2".try_into().unwrap(),
+                path: "child2/path".into(),
+                parent: Some("parent".try_into().unwrap()),
+                permission: Permission::default(),
+                owner: Owner::default(),
+                path_type: PathType::default(),
+                deferred: false,
+                metadata: std::collections::HashMap::new(),
+            })
             .unwrap()
             .build()
             .unwrap();
@@ -472,15 +412,16 @@ mod tests {
     #[test]
     fn test_config_builder_build_failure_invalid_parent() {
         let err = ConfigBuilder::new()
-            .add_path_item(
-                "key",
-                "path",
-                Some("invalid"),
-                &Permission::default(),
-                &Owner::default(),
-                &CopyFile::default(),
-                false,
-            )
+            .add_path_item(PathItemArgs {
+                key: "key".try_into().unwrap(),
+                path: "path".into(),
+                parent: Some("invalid".try_into().unwrap()),
+                permission: Permission::default(),
+                owner: Owner::default(),
+                path_type: PathType::default(),
+                deferred: false,
+                metadata: std::collections::HashMap::new(),
+            })
             .unwrap()
             .build()
             .unwrap_err();
@@ -495,25 +436,27 @@ mod tests {
     #[test]
     fn test_config_builder_build_failure_invalid_path() {
         let err = ConfigBuilder::new()
-            .add_path_item(
-                "child",
-                "path",
-                Some("parent"),
-                &Permission::default(),
-                &Owner::default(),
-                &CopyFile::default(),
-                false,
-            )
+            .add_path_item(PathItemArgs {
+                key: "child".try_into().unwrap(),
+                path: "path".into(),
+                parent: Some("parent".try_into().unwrap()),
+                permission: Permission::default(),
+                owner: Owner::default(),
+                path_type: PathType::default(),
+                deferred: false,
+                metadata: std::collections::HashMap::new(),
+            })
             .unwrap()
-            .add_path_item(
-                "parent",
-                "/{123}parent",
-                None,
-                &Permission::default(),
-                &Owner::default(),
-                &CopyFile::default(),
-                false,
-            )
+            .add_path_item(PathItemArgs {
+                key: "parent".try_into().unwrap(),
+                path: "/{123}parent".into(),
+                parent: None,
+                permission: Permission::default(),
+                owner: Owner::default(),
+                path_type: PathType::default(),
+                deferred: false,
+                metadata: std::collections::HashMap::new(),
+            })
             .unwrap()
             .build()
             .unwrap_err();
@@ -529,25 +472,27 @@ mod tests {
     #[test]
     fn test_config_builder_build_failure_infinite_recursion() {
         let err = ConfigBuilder::new()
-            .add_path_item(
-                "child",
-                "child",
-                Some("parent"),
-                &Permission::default(),
-                &Owner::default(),
-                &CopyFile::default(),
-                false,
-            )
+            .add_path_item(PathItemArgs {
+                key: "child".try_into().unwrap(),
+                path: "child".into(),
+                parent: Some("parent".try_into().unwrap()),
+                permission: Permission::default(),
+                owner: Owner::default(),
+                path_type: PathType::default(),
+                deferred: false,
+                metadata: std::collections::HashMap::new(),
+            })
             .unwrap()
-            .add_path_item(
-                "parent",
-                "parent",
-                Some("child"),
-                &Permission::default(),
-                &Owner::default(),
-                &CopyFile::default(),
-                false,
-            )
+            .add_path_item(PathItemArgs {
+                key: "parent".try_into().unwrap(),
+                path: "parent".into(),
+                parent: Some("child".try_into().unwrap()),
+                permission: Permission::default(),
+                owner: Owner::default(),
+                path_type: PathType::default(),
+                deferred: false,
+                metadata: std::collections::HashMap::new(),
+            })
             .unwrap()
             .build()
             .unwrap_err();
@@ -570,42 +515,29 @@ mod tests {
     }
 
     #[test]
-    fn test_config_builder_add_template_str_success() {
-        ConfigBuilder::new()
-            .add_template("key", "value")
-            .unwrap()
-            .build()
-            .unwrap();
-    }
-
-    #[test]
-    fn test_config_builder_add_template_str_failure_invalid_value() {
-        let err = ConfigBuilder::new().add_template("key", "{{").unwrap_err();
-        assert!(matches!(err, crate::Error::TemplateError(_)));
-    }
-
-    #[test]
     fn test_config_get_item_success() {
         let config = ConfigBuilder::new()
-            .add_path_item(
-                "parent",
-                "/parent/path",
-                None,
-                &Permission::default(),
-                &Owner::default(),
-                &CopyFile::default(),
-                false,
-            )
+            .add_path_item(PathItemArgs {
+                key: "parent".try_into().unwrap(),
+                path: "/parent/path".into(),
+                parent: None,
+                permission: Permission::default(),
+                owner: Owner::default(),
+                path_type: PathType::default(),
+                deferred: false,
+                metadata: std::collections::HashMap::new(),
+            })
             .unwrap()
-            .add_path_item(
-                "child",
-                "child/path",
-                Some("parent"),
-                &Permission::default(),
-                &Owner::default(),
-                &CopyFile::default(),
-                false,
-            )
+            .add_path_item(PathItemArgs {
+                key: "child".try_into().unwrap(),
+                path: "child/path".into(),
+                parent: Some("parent".try_into().unwrap()),
+                permission: Permission::default(),
+                owner: Owner::default(),
+                path_type: PathType::default(),
+                deferred: false,
+                metadata: std::collections::HashMap::new(),
+            })
             .unwrap()
             .build()
             .unwrap();
@@ -614,7 +546,7 @@ mod tests {
         assert_eq!(item.len(), 5);
         assert_eq!(
             item.iter()
-                .map(|i| i.value.to_string())
+                .map(|i| i.path.to_string())
                 .collect::<std::path::PathBuf>(),
             std::path::PathBuf::from("/parent/path/child/path")
         );

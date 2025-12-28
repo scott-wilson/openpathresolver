@@ -1,4 +1,14 @@
-use crate::types::{TemplateAttributes, TemplateEntity};
+use crate::types::TemplateAttributes;
+
+macro_rules! impl_from {
+    ($($e:ty: $t:ty => $v:ident),+ $(,)?) => {
+        $(impl From<$t> for $e {
+            fn from(value: $t) -> Self {
+                Self::$v(value.into())
+            }
+        })+
+    };
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum PathValue {
@@ -6,29 +16,12 @@ pub enum PathValue {
     String(String),
 }
 
-impl From<&str> for PathValue {
-    fn from(value: &str) -> Self {
-        Self::String(value.into())
-    }
-}
-
-impl From<String> for PathValue {
-    fn from(value: String) -> Self {
-        Self::String(value)
-    }
-}
-
-impl From<u16> for PathValue {
-    fn from(value: u16) -> Self {
-        Self::Integer(value)
-    }
-}
-
-impl From<u8> for PathValue {
-    fn from(value: u8) -> Self {
-        Self::Integer(value.into())
-    }
-}
+impl_from!(
+    PathValue: &str => String,
+    PathValue: String => String,
+    PathValue: u8 => Integer,
+    PathValue: u16 => Integer,
+);
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum TemplateValue {
@@ -39,14 +32,24 @@ pub enum TemplateValue {
     String(String),
     Array(Vec<TemplateValue>),
     Object(TemplateAttributes),
-    Entity(TemplateEntity),
 }
 
-impl From<bool> for TemplateValue {
-    fn from(value: bool) -> Self {
-        Self::Bool(value)
-    }
-}
+impl_from!(
+    TemplateValue: bool => Bool,
+    TemplateValue: u8 => Integer,
+    TemplateValue: i8 => Integer,
+    TemplateValue: u16 => Integer,
+    TemplateValue: i16 => Integer,
+    TemplateValue: u32 => Integer,
+    TemplateValue: i32 => Integer,
+    TemplateValue: i64 => Integer,
+    TemplateValue: f32 => Float,
+    TemplateValue: f64 => Float,
+    TemplateValue: &str => String,
+    TemplateValue: String => String,
+    TemplateValue: Vec<TemplateValue> => Array,
+    TemplateValue: TemplateAttributes => Object,
+);
 
 impl TryFrom<u64> for TemplateValue {
     type Error = crate::Error;
@@ -56,86 +59,38 @@ impl TryFrom<u64> for TemplateValue {
     }
 }
 
-impl From<i64> for TemplateValue {
-    fn from(value: i64) -> Self {
-        Self::Integer(value)
-    }
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum MetadataValue {
+    None,
+    Bool(bool),
+    Integer(i64),
+    Float(f64),
+    String(String),
+    Array(Vec<MetadataValue>),
+    Object(std::collections::HashMap<String, MetadataValue>),
 }
 
-impl From<i32> for TemplateValue {
-    fn from(value: i32) -> Self {
-        Self::Integer(value.into())
-    }
-}
+impl_from!(
+    MetadataValue: bool => Bool,
+    MetadataValue: u8 => Integer,
+    MetadataValue: i8 => Integer,
+    MetadataValue: u16 => Integer,
+    MetadataValue: i16 => Integer,
+    MetadataValue: u32 => Integer,
+    MetadataValue: i32 => Integer,
+    MetadataValue: i64 => Integer,
+    MetadataValue: f32 => Float,
+    MetadataValue: f64 => Float,
+    MetadataValue: &str => String,
+    MetadataValue: String => String,
+    MetadataValue: Vec<MetadataValue> => Array,
+    MetadataValue: std::collections::HashMap<String, MetadataValue> => Object,
+);
 
-impl From<u32> for TemplateValue {
-    fn from(value: u32) -> Self {
-        Self::Integer(value.into())
-    }
-}
+impl TryFrom<u64> for MetadataValue {
+    type Error = crate::Error;
 
-impl From<i16> for TemplateValue {
-    fn from(value: i16) -> Self {
-        Self::Integer(value.into())
-    }
-}
-
-impl From<u16> for TemplateValue {
-    fn from(value: u16) -> Self {
-        Self::Integer(value.into())
-    }
-}
-
-impl From<i8> for TemplateValue {
-    fn from(value: i8) -> Self {
-        Self::Integer(value.into())
-    }
-}
-
-impl From<u8> for TemplateValue {
-    fn from(value: u8) -> Self {
-        Self::Integer(value.into())
-    }
-}
-
-impl From<f64> for TemplateValue {
-    fn from(value: f64) -> Self {
-        Self::Float(value)
-    }
-}
-
-impl From<f32> for TemplateValue {
-    fn from(value: f32) -> Self {
-        Self::Float(value.into())
-    }
-}
-
-impl From<String> for TemplateValue {
-    fn from(value: String) -> Self {
-        Self::String(value)
-    }
-}
-
-impl From<&str> for TemplateValue {
-    fn from(value: &str) -> Self {
-        Self::String(value.into())
-    }
-}
-
-impl From<Vec<TemplateValue>> for TemplateValue {
-    fn from(value: Vec<TemplateValue>) -> Self {
-        Self::Array(value)
-    }
-}
-
-impl From<TemplateAttributes> for TemplateValue {
-    fn from(value: TemplateAttributes) -> Self {
-        Self::Object(value)
-    }
-}
-
-impl From<TemplateEntity> for TemplateValue {
-    fn from(value: TemplateEntity) -> Self {
-        Self::Entity(value)
+    fn try_from(value: u64) -> Result<Self, Self::Error> {
+        Ok(Self::Integer(value.try_into()?))
     }
 }
