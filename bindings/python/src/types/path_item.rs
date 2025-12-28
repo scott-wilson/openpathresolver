@@ -1,112 +1,110 @@
 use pyo3::prelude::*;
 
-#[derive(Clone, Debug)]
-#[pyclass]
-pub struct CopyFile {
-    pub(crate) inner: base_openpathresolver::CopyFile,
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[pyclass(eq, eq_int, frozen, hash)]
+pub enum PathType {
+    Directory,
+    File,
+    FileTemplate,
 }
 
-#[pymethods]
-impl CopyFile {
-    #[staticmethod]
-    fn new_none() -> Self {
-        Self {
-            inner: base_openpathresolver::CopyFile::None,
-        }
-    }
-
-    #[staticmethod]
-    fn new_path(path: &str) -> Self {
-        Self {
-            inner: base_openpathresolver::CopyFile::Path(std::path::PathBuf::from(path)),
-        }
-    }
-
-    #[staticmethod]
-    fn new_template(value: &str) -> PyResult<Self> {
-        Ok(Self {
-            inner: base_openpathresolver::CopyFile::Template(crate::to_py_result(
-                base_openpathresolver::FieldKey::try_from(value),
-            )?),
-        })
-    }
-}
-
-#[derive(Clone, Debug)]
-#[pyclass]
-pub struct Owner {
-    pub(crate) inner: base_openpathresolver::Owner,
-}
-
-#[pymethods]
-impl Owner {
-    #[staticmethod]
-    fn new_inherit() -> Self {
-        Self {
-            inner: base_openpathresolver::Owner::Inherit,
-        }
-    }
-
-    #[staticmethod]
-    fn new_root() -> Self {
-        Self {
-            inner: base_openpathresolver::Owner::Root,
-        }
-    }
-
-    #[staticmethod]
-    fn new_project() -> Self {
-        Self {
-            inner: base_openpathresolver::Owner::Project,
-        }
-    }
-
-    #[staticmethod]
-    fn new_user() -> Self {
-        Self {
-            inner: base_openpathresolver::Owner::User,
+impl From<base_openpathresolver::PathType> for PathType {
+    fn from(value: base_openpathresolver::PathType) -> Self {
+        match value {
+            base_openpathresolver::PathType::Directory => Self::Directory,
+            base_openpathresolver::PathType::File => Self::File,
+            base_openpathresolver::PathType::FileTemplate => Self::FileTemplate,
         }
     }
 }
 
-#[derive(Clone, Debug)]
-#[pyclass]
-pub struct Permission {
-    pub(crate) inner: base_openpathresolver::Permission,
-}
-
-#[pymethods]
-impl Permission {
-    #[staticmethod]
-    fn new_inherit() -> Self {
-        Self {
-            inner: base_openpathresolver::Permission::Inherit,
-        }
-    }
-
-    #[staticmethod]
-    fn new_read_only() -> Self {
-        Self {
-            inner: base_openpathresolver::Permission::ReadOnly,
-        }
-    }
-
-    #[staticmethod]
-    fn new_read_write() -> Self {
-        Self {
-            inner: base_openpathresolver::Permission::ReadWrite,
+impl From<PathType> for base_openpathresolver::PathType {
+    fn from(value: PathType) -> Self {
+        match value {
+            PathType::Directory => Self::Directory,
+            PathType::File => Self::File,
+            PathType::FileTemplate => Self::FileTemplate,
         }
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[pyclass(eq, eq_int, frozen, hash)]
+pub enum Owner {
+    Inherit,
+    Root,
+    Project,
+    User,
+}
+
+impl From<base_openpathresolver::Owner> for Owner {
+    fn from(value: base_openpathresolver::Owner) -> Self {
+        match value {
+            base_openpathresolver::Owner::Inherit => Self::Inherit,
+            base_openpathresolver::Owner::Root => Self::Root,
+            base_openpathresolver::Owner::Project => Self::Project,
+            base_openpathresolver::Owner::User => Self::User,
+        }
+    }
+}
+
+impl From<Owner> for base_openpathresolver::Owner {
+    fn from(value: Owner) -> Self {
+        match value {
+            Owner::Inherit => Self::Inherit,
+            Owner::Root => Self::Root,
+            Owner::Project => Self::Project,
+            Owner::User => Self::User,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[pyclass(eq, eq_int, frozen, hash)]
+pub enum Permission {
+    Inherit,
+    ReadOnly,
+    ReadWrite,
+}
+
+impl From<base_openpathresolver::Permission> for Permission {
+    fn from(value: base_openpathresolver::Permission) -> Self {
+        match value {
+            base_openpathresolver::Permission::Inherit => Self::Inherit,
+            base_openpathresolver::Permission::ReadOnly => Self::ReadOnly,
+            base_openpathresolver::Permission::ReadWrite => Self::ReadWrite,
+        }
+    }
+}
+
+impl From<Permission> for base_openpathresolver::Permission {
+    fn from(value: Permission) -> Self {
+        match value {
+            Permission::Inherit => Self::Inherit,
+            Permission::ReadOnly => Self::ReadOnly,
+            Permission::ReadWrite => Self::ReadWrite,
+        }
+    }
+}
+
+#[derive(Clone)]
 #[pyclass]
 pub struct ResolvedPathItem {
     pub(crate) inner: base_openpathresolver::ResolvedPathItem,
 }
 
+impl std::fmt::Debug for ResolvedPathItem {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.inner.fmt(f)
+    }
+}
+
 #[pymethods]
 impl ResolvedPathItem {
+    pub fn __repr__(&self) -> String {
+        format!("{self:?}")
+    }
+
     pub fn key(&self) -> Option<&str> {
         match self.inner.key() {
             Some(key) => Some(key.as_str()),
@@ -119,21 +117,15 @@ impl ResolvedPathItem {
     }
 
     pub fn permission(&self) -> Permission {
-        Permission {
-            inner: self.inner.permission().to_owned(),
-        }
+        Permission::from(self.inner.permission().to_owned())
     }
 
     pub fn owner(&self) -> Owner {
-        Owner {
-            inner: self.inner.owner().to_owned(),
-        }
+        Owner::from(self.inner.owner().to_owned())
     }
 
-    pub fn copy_file(&self) -> CopyFile {
-        CopyFile {
-            inner: self.inner.copy_file().to_owned(),
-        }
+    pub fn path_type(&self) -> PathType {
+        PathType::from(self.inner.path_type().to_owned())
     }
 
     pub fn deferred(&self) -> bool {
@@ -149,12 +141,14 @@ pub struct PathItem {
     pub(crate) parent: Option<crate::FieldKey>,
     pub(crate) permission: Permission,
     pub(crate) owner: Owner,
-    pub(crate) copy_file: CopyFile,
+    pub(crate) path_type: PathType,
     pub(crate) deferred: bool,
+    pub(crate) metadata: std::collections::HashMap<String, crate::MetadataValue>,
 }
 
 #[pymethods]
 impl PathItem {
+    #[allow(clippy::too_many_arguments)]
     #[new]
     fn new(
         key: String,
@@ -162,8 +156,9 @@ impl PathItem {
         parent: Option<String>,
         permission: Permission,
         owner: Owner,
-        copy_file: CopyFile,
+        path_type: PathType,
         deferred: bool,
+        metadata: std::collections::HashMap<String, crate::MetadataValue>,
     ) -> PyResult<Self> {
         let key = crate::FieldKey::try_from(key)?;
 
@@ -178,8 +173,9 @@ impl PathItem {
             parent,
             permission,
             owner,
-            copy_file,
+            path_type,
             deferred,
+            metadata,
         })
     }
 }

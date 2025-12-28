@@ -1,5 +1,4 @@
 mod config;
-mod entity;
 mod field_key;
 mod path_item;
 mod resolver;
@@ -11,10 +10,9 @@ pub(crate) type TemplateAttributes = std::collections::HashMap<FieldKey, Templat
 pub(crate) type Resolvers = std::collections::HashMap<FieldKey, Resolver>;
 
 pub use config::{Config, ConfigBuilder};
-pub use entity::{PathEntity, TemplateEntity};
 pub use field_key::FieldKey;
-pub use path_item::{CopyFile, Owner, Permission, ResolvedPathItem};
-pub(crate) use path_item::{PathItem, PathItemBuilder};
+pub(crate) use path_item::PathItem;
+pub use path_item::{Owner, PathItemArgs, PathType, Permission, ResolvedPathItem};
 pub use resolver::Resolver;
 pub(crate) use token::{Token, Tokens};
-pub use value::{PathValue, TemplateValue};
+pub use value::{MetadataValue, PathValue, TemplateValue};

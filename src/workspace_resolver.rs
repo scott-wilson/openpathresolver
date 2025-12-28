@@ -1,14 +1,20 @@
-pub fn create_workspace(
-    config: &crate::Config,
+#[async_trait::async_trait]
+pub trait CreateWorkspaceIoFunction {
+    async fn call(
+        &self,
+        config: std::sync::Arc<crate::Config>,
+        template_fields: std::sync::Arc<crate::types::TemplateAttributes>,
+        path_item: crate::ResolvedPathItem,
+    ) -> Result<(), crate::Error>;
+}
+
+pub async fn create_workspace<Func: CreateWorkspaceIoFunction + Send + Sync + 'static>(
+    config: std::sync::Arc<crate::Config>,
     path_fields: &crate::types::PathAttributes,
-    template_fields: &crate::types::TemplateAttributes,
-    io_function: impl Fn(
-        &crate::Config,
-        &crate::ResolvedPathItem,
-        &crate::types::TemplateAttributes,
-    ) -> Result<(), crate::Error>,
+    template_fields: std::sync::Arc<crate::types::TemplateAttributes>,
+    io_function: Func,
 ) -> Result<(), crate::Error> {
-    let resolved_items = get_workspace(config, path_fields)?;
+    let resolved_items = get_workspace(config.as_ref(), path_fields)?;
     let mut parent_resolved_map = std::collections::BTreeMap::new();
 
     for resolved_item in &resolved_items {
@@ -16,12 +22,27 @@ pub fn create_workspace(
         parent_resolved_map
             .entry(parent)
             .or_insert(Vec::new())
-            .push(resolved_item);
+            .push(resolved_item.clone());
     }
+
+    let mut workers_set = tokio::task::JoinSet::new();
+    let io_function = std::sync::Arc::new(io_function);
 
     for (_, child_resolved_items) in parent_resolved_map {
         for resolved_item in child_resolved_items {
-            io_function(config, resolved_item, template_fields)?;
+            let io_function = io_function.clone();
+            let config = config.clone();
+            let template_fields = template_fields.clone();
+            workers_set.spawn(async move {
+                io_function
+                    .call(config, template_fields, resolved_item)
+                    .await
+            });
+        }
+
+        while let Some(response) = workers_set.join_next().await {
+            // TODO: Don't use unwrap here.
+            response.unwrap()?;
         }
     }
 
@@ -56,12 +77,12 @@ pub fn get_workspace(
         index_key_map: &std::collections::HashMap<usize, crate::FieldKey>,
         resolved_items: &mut Vec<crate::ResolvedPathItem>,
     ) -> Result<(), crate::Error> {
-        if !item.value.is_resolved_by(path_fields) {
+        if !item.path.is_resolved_by(path_fields) {
             return Ok(());
         }
         let value = {
             let mut path_part = String::new();
-            item.value
+            item.path
                 .draw(&mut path_part, path_fields, &config.resolvers)?;
 
             parent_resolved_item.value.join(path_part)
@@ -71,14 +92,14 @@ pub fn get_workspace(
             _ => item.permission,
         };
         let owner = match item.owner {
-            crate::types::Owner::Inherit => parent_resolved_item.owner.clone(),
-            _ => item.owner.clone(),
+            crate::types::Owner::Inherit => parent_resolved_item.owner,
+            _ => item.owner,
         };
-        let copy_file = item.copy_file.clone();
+        let path_type = item.path_type;
         let key = index_key_map.get(&index).cloned();
         let deferred = match parent_resolved_item.deferred {
             true => {
-                if item.value.has_variable_tokens() && item.value.is_resolved_by(path_fields) {
+                if item.path.has_variable_tokens() && item.path.is_resolved_by(path_fields) {
                     false
                 } else {
                     item.deferred
@@ -92,8 +113,9 @@ pub fn get_workspace(
             value,
             permission,
             owner,
-            copy_file,
+            path_type,
             deferred,
+            metadata: std::collections::HashMap::new(),
         };
 
         let child_indexes = parent_children_map.get(&index);
@@ -126,21 +148,22 @@ pub fn get_workspace(
         .map(|(k, v)| (*v, k.to_owned()))
         .collect::<std::collections::HashMap<_, _>>();
 
-    for (item, index) in queue.iter() {
-        let key = index_key_map.get(index).cloned();
+    for (item, index) in queue.into_iter() {
+        let key = index_key_map.get(&index).cloned();
         let resolved_item = crate::ResolvedPathItem {
             key,
             value: std::path::PathBuf::new(),
-            permission: item.permission.to_owned(),
-            owner: item.owner.to_owned(),
-            copy_file: item.copy_file.to_owned(),
+            permission: item.permission,
+            owner: item.owner,
+            path_type: item.path_type,
             deferred: item.deferred,
+            metadata: item.metadata.clone(),
         };
         recursive_build_items(
             config,
             &resolved_item,
             item,
-            *index,
+            index,
             path_fields,
             &parent_children_map,
             &index_key_map,
@@ -178,20 +201,45 @@ pub fn get_workspace(
 
 #[cfg(test)]
 mod tests {
+    use crate::{Owner, PathItemArgs, PathType, Permission};
+
     use super::*;
 
     #[test]
     fn test_get_workspace_success() {
         let config = crate::ConfigBuilder::new()
-            .add_path_item(
-                "key",
-                "/path/to/{thing}",
-                None,
-                &crate::Permission::default(),
-                &crate::Owner::default(),
-                &crate::CopyFile::default(),
-                false,
-            )
+            .add_path_item(PathItemArgs {
+                key: "key1".try_into().unwrap(),
+                path: "/path/to/{thing}".into(),
+                parent: None,
+                permission: Permission::default(),
+                owner: Owner::default(),
+                path_type: PathType::default(),
+                deferred: false,
+                metadata: std::collections::HashMap::new(),
+            })
+            .unwrap()
+            .add_path_item(PathItemArgs {
+                key: "key2".try_into().unwrap(),
+                path: "/path/to/a/{thing}".into(),
+                parent: None,
+                permission: Permission::default(),
+                owner: Owner::default(),
+                path_type: PathType::default(),
+                deferred: false,
+                metadata: std::collections::HashMap::new(),
+            })
+            .unwrap()
+            .add_path_item(PathItemArgs {
+                key: "key3".try_into().unwrap(),
+                path: "/path/to/b/{thing}".into(),
+                parent: None,
+                permission: Permission::default(),
+                owner: Owner::default(),
+                path_type: PathType::default(),
+                deferred: false,
+                metadata: std::collections::HashMap::new(),
+            })
             .unwrap()
             .build()
             .unwrap();
@@ -204,10 +252,97 @@ mod tests {
         };
         let resolved_items = get_workspace(&config, &fields).unwrap();
 
-        assert_eq!(resolved_items.len(), 4);
-        assert_eq!(resolved_items[0].value.to_string_lossy(), "/");
-        assert_eq!(resolved_items[1].value.to_string_lossy(), "/path");
-        assert_eq!(resolved_items[2].value.to_string_lossy(), "/path/to");
-        assert_eq!(resolved_items[3].value.to_string_lossy(), "/path/to/value");
+        assert_eq!(resolved_items.len(), 8);
+        for (index, expected) in [
+            "/",
+            "/path",
+            "/path/to",
+            "/path/to/a",
+            "/path/to/a/value",
+            "/path/to/b",
+            "/path/to/b/value",
+            "/path/to/value",
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            assert_eq!(resolved_items[index].value.to_string_lossy(), expected);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_create_workspace_success() {
+        let config = crate::ConfigBuilder::new()
+            .add_path_item(PathItemArgs {
+                key: "key1".try_into().unwrap(),
+                path: "/path/to/{thing}".into(),
+                parent: None,
+                permission: Permission::default(),
+                owner: Owner::default(),
+                path_type: PathType::default(),
+                deferred: false,
+                metadata: std::collections::HashMap::new(),
+            })
+            .unwrap()
+            .add_path_item(PathItemArgs {
+                key: "key2".try_into().unwrap(),
+                path: "/path/to/a/{thing}".into(),
+                parent: None,
+                permission: Permission::default(),
+                owner: Owner::default(),
+                path_type: PathType::default(),
+                deferred: false,
+                metadata: std::collections::HashMap::new(),
+            })
+            .unwrap()
+            .add_path_item(PathItemArgs {
+                key: "key3".try_into().unwrap(),
+                path: "/path/to/b/{thing}".into(),
+                parent: None,
+                permission: Permission::default(),
+                owner: Owner::default(),
+                path_type: PathType::default(),
+                deferred: false,
+                metadata: std::collections::HashMap::new(),
+            })
+            .unwrap()
+            .build()
+            .unwrap();
+
+        let path_fields = {
+            let mut fields = crate::types::PathAttributes::new();
+            fields.insert("thing".try_into().unwrap(), "value".into());
+
+            fields
+        };
+        let template_fields = {
+            let mut fields = crate::types::TemplateAttributes::new();
+            fields.insert("thing".try_into().unwrap(), "value".into());
+
+            fields
+        };
+
+        struct Func;
+
+        #[async_trait::async_trait]
+        impl CreateWorkspaceIoFunction for Func {
+            async fn call(
+                &self,
+                _config: std::sync::Arc<crate::Config>,
+                _template_fields: std::sync::Arc<crate::types::TemplateAttributes>,
+                _path_item: crate::ResolvedPathItem,
+            ) -> Result<(), crate::Error> {
+                Ok(())
+            }
+        }
+
+        create_workspace(
+            std::sync::Arc::new(config),
+            &path_fields,
+            std::sync::Arc::new(template_fields),
+            Func,
+        )
+        .await
+        .unwrap();
     }
 }

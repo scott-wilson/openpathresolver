@@ -1,3 +1,6 @@
+// TODO: Make the error type more useful/have less branches that aren't actually useful outside of
+// "error came from dependency"
+
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("Formatting error")]
@@ -9,8 +12,6 @@ pub enum Error {
         resolver: crate::Resolver,
         value: crate::PathValue,
     },
-    #[error("Error with template {0}")]
-    TemplateError(#[from] minijinja::Error),
     #[error("Parent {0} does not exist")]
     MissingParentError(crate::FieldKey),
     #[error("Error while parsing: {0}")]
@@ -38,6 +39,10 @@ pub enum Error {
     VariableRootPathError,
     #[error("IO Error: {0}")]
     IOError(#[from] std::io::Error),
+    #[error("Glob Error: {0}")]
+    GlobError(#[from] glob::GlobError),
+    #[error("Glob Pattern Error: {0}")]
+    GlobPatternError(#[from] glob::PatternError),
     #[error("Runtime Error: {0}")]
     RuntimeError(String),
 }

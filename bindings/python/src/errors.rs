@@ -11,7 +11,6 @@ pyo3::create_exception!(
     ResolverTypeMismatchError,
     pyo3::exceptions::PyException
 );
-pyo3::create_exception!(path_resolver, TemplateError, pyo3::exceptions::PyException);
 pyo3::create_exception!(
     path_resolver,
     MissingParentError,
@@ -59,7 +58,6 @@ pub(crate) fn to_py_error(err: &base_openpathresolver::Error) -> PyErr {
         base_openpathresolver::Error::ResolverTypeMismatchError { .. } => {
             ResolverTypeMismatchError::new_err(err.to_string())
         }
-        base_openpathresolver::Error::TemplateError(_) => TemplateError::new_err(err.to_string()),
         base_openpathresolver::Error::MissingParentError(_) => {
             MissingParentError::new_err(err.to_string())
         }
@@ -84,6 +82,12 @@ pub(crate) fn to_py_error(err: &base_openpathresolver::Error) -> PyErr {
             VariableRootPathError::new_err(err.to_string())
         }
         base_openpathresolver::Error::IOError(_) => IOError::new_err(err.to_string()),
+        base_openpathresolver::Error::GlobError(glob_error) => {
+            IOError::new_err(glob_error.to_string())
+        }
+        base_openpathresolver::Error::GlobPatternError(pattern_error) => {
+            IOError::new_err(pattern_error.to_string())
+        }
         base_openpathresolver::Error::RuntimeError(_) => PyRuntimeError::new_err(err.to_string()),
     }
 }

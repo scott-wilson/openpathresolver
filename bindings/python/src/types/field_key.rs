@@ -1,10 +1,16 @@
 use pyo3::prelude::*;
 use std::hash::{Hash, Hasher};
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 #[pyclass]
 pub struct FieldKey {
     pub(crate) inner: base_openpathresolver::FieldKey,
+}
+
+impl std::fmt::Debug for FieldKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.inner.fmt(f)
+    }
 }
 
 impl TryFrom<String> for FieldKey {
@@ -52,5 +58,9 @@ impl FieldKey {
 
     fn __str__(&self) -> &str {
         self.inner.as_str()
+    }
+
+    fn __repr__(&self) -> String {
+        format!("FieldKey({:?})", self.inner.as_str())
     }
 }

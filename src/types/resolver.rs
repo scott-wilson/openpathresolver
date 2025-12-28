@@ -1,7 +1,5 @@
 use serde::Deserialize;
 
-pub use crate::types::FieldKey;
-
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub enum Resolver {
     Default,
@@ -15,21 +13,17 @@ pub enum Resolver {
     Integer {
         padding: u8,
     },
-    Entity {
-        key: FieldKey,
-    },
 }
 
 impl Resolver {
     pub(crate) fn pattern(&self) -> std::borrow::Cow<'_, str> {
         match self {
-            Self::Default => ".+".into(),
+            Self::Default => ".+?".into(),
             Self::String { pattern } => match pattern {
                 Some(pattern) => pattern.to_string().into(),
-                None => ".+".into(),
+                None => ".+?".into(),
             },
-            Self::Integer { padding } => format!("\\d{{{},}}", padding.max(&1)).into(),
-            Self::Entity { key: _ } => ".+".into(),
+            Self::Integer { padding } => format!("\\d{{{},}}?", padding.max(&1)).into(),
         }
     }
 
@@ -38,7 +32,6 @@ impl Resolver {
             Self::Default => Ok(crate::PathValue::String(value.into())),
             Self::String { .. } => Ok(crate::PathValue::String(value.into())),
             Self::Integer { .. } => Ok(crate::PathValue::Integer(value.parse()?)),
-            Self::Entity { .. } => Ok(crate::PathValue::String(value.into())),
         }
     }
 }

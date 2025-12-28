@@ -1,5 +1,3 @@
-use crate::types::PathItem;
-
 pub fn get_path(
     config: &crate::Config,
     key: impl TryInto<crate::FieldKey, Error = crate::Error>,
@@ -15,7 +13,7 @@ pub fn get_path(
     let mut path_part = String::new();
 
     for part in item.iter() {
-        part.value.draw(&mut path_part, fields, &config.resolvers)?;
+        part.path.draw(&mut path_part, fields, &config.resolvers)?;
         path.push(path_part.as_str());
         path_part.clear();
     }
@@ -34,59 +32,37 @@ pub fn get_fields(
         Some(item) => item,
         None => return Err(crate::Error::MissingItemError(key.clone())),
     };
-
-    let mut path_pattern = Vec::new();
-    let mut counter = 0usize;
-    let mut id_field_map = std::collections::HashMap::new();
-
-    for part in item.iter() {
-        let mut path_part = String::new();
-        part.value
-            .draw_regex_pattern(&mut path_part, &config.resolvers)?;
-        path_pattern.push(path_part);
-
-        for token in &part.value.tokens {
-            if let crate::types::Token::Variable(key) = token {
-                id_field_map.insert(counter, key);
-                counter += 1;
-            }
-        }
-    }
-
+    let mut part_pattern = String::new();
     let mut fields = crate::types::PathAttributes::new();
 
-    for (path_part, pattern_part) in path.iter().zip(path_pattern.iter()) {
-        let path_part = path_part.to_string_lossy();
+    for (part, path_part) in item.iter().zip(path.iter()) {
+        part_pattern.clear();
+        part_pattern.push('^');
+        part.path
+            .draw_regex_pattern(&mut part_pattern, &config.resolvers)?;
+        part_pattern.push('$');
         // TODO: cache this line - building regexes are expensive.
-        let pattern_part = regex::Regex::new(&format!("^{}$", pattern_part))?;
-        let captures = match pattern_part.captures(&path_part) {
+        let regex_pattern = regex::Regex::new(&part_pattern)?;
+        let path_part_str = path_part.to_string_lossy();
+        let captures = match regex_pattern.captures(&path_part_str) {
             Some(captures) => captures,
             None => return Ok(None),
         };
 
-        for (index, matching_pattern) in captures.iter().skip(1).enumerate() {
-            let matching_pattern = match matching_pattern {
-                Some(matching_pattern) => matching_pattern,
-                None => continue,
-            };
-            let field_key = *id_field_map.get(&index).unwrap();
-            let resolver = match config.resolvers.get(field_key) {
-                Some(resolver) => resolver,
-                None => &crate::Resolver::Default,
-            };
-            let value = resolver.to_path_value(matching_pattern.as_str())?;
+        let mut counter = 1;
 
-            if let Some(other_value) = fields.get(field_key) {
-                if &value != other_value {
-                    return Err(crate::Error::MismatchedFieldError {
-                        key: field_key.clone(),
-                        value: value.clone(),
-                        other_value: other_value.clone(),
-                    });
-                }
+        for token in part.path.tokens.iter() {
+            if let crate::types::Token::Variable(key) = token {
+                let captured = &captures[counter];
+                let resolver = match config.resolvers.get(key) {
+                    Some(resolver) => resolver,
+                    None => &crate::Resolver::Default,
+                };
+                let value = resolver.to_path_value(captured)?;
+                fields.insert(key.to_owned(), value);
+
+                counter += 1;
             }
-
-            fields.insert(field_key.clone(), value);
         }
     }
 
@@ -122,100 +98,64 @@ pub fn find_paths(
         None => return Err(crate::Error::MissingItemError(key.clone())),
     };
 
-    let mut path_pattern = Vec::new();
+    let mut regex_path = std::path::PathBuf::new();
+    let mut glob_path = std::path::PathBuf::new();
 
     for part in item.iter() {
-        let mut path_part = String::new();
-        part.value
-            .draw_regex_pattern(&mut path_part, &config.resolvers)?;
-        path_pattern.push(path_part);
+        let mut regex_part = String::new();
+        part.path
+            .draw_regex_pattern(&mut regex_part, &config.resolvers)?;
+
+        let value = if part.path.has_variable_tokens() {
+            part.path.try_to_literal_token(fields, &config.resolvers)?
+        } else {
+            part.path.clone()
+        };
+
+        let mut glob_part = String::new();
+        value.draw_glob_pattern(&mut glob_part)?;
+
+        regex_path.push(regex_part);
+        glob_path.push(glob_part);
     }
 
-    let mut paths = Vec::new();
+    let mut regex_pattern = String::new();
+    regex_pattern.push('^');
+    regex_pattern.push_str(regex_path.to_string_lossy().as_ref());
+    regex_pattern.push('$');
+    let compiled_regex = regex::Regex::new(&regex_pattern)?;
 
-    fn recursive_find_paths(
-        config: &crate::Config,
-        fields: &crate::types::PathAttributes,
-        root: &std::path::Path,
-        elements: &[&PathItem],
-        paths: &mut Vec<std::path::PathBuf>,
-    ) -> Result<(), crate::Error> {
-        let mut root = root.to_path_buf();
+    let mut out_paths = Vec::new();
 
-        for (index, element) in elements.iter().enumerate() {
-            let mut value = element.value.clone();
-
-            if value.has_variable_tokens() {
-                value = value.try_to_literal_token(fields, &config.resolvers)?;
-            }
-
-            if value.has_variable_tokens() {
-                if root.as_os_str().is_empty() {
-                    return Err(crate::Error::VariableRootPathError);
-                }
-
-                let mut pattern = String::new();
-                value.draw_regex_pattern(&mut pattern, &config.resolvers)?;
-                // TODO: Cache this line - building regexes are expensive.
-                let pattern = regex::Regex::new(&format!("^{}$", pattern))?;
-                let sub_elements = elements.get(index + 1..).unwrap_or(&[]);
-
-                for dir_entry in std::fs::read_dir(&root)? {
-                    let dir_entry = dir_entry?;
-                    let path = dir_entry.path();
-                    let name = match path.file_name() {
-                        Some(name) => name.to_string_lossy(),
-                        None => continue,
-                    };
-
-                    if !pattern.is_match(&name) {
-                        continue;
-                    }
-
-                    if sub_elements.is_empty() {
-                        paths.push(path);
-                        continue;
-                    } else {
-                        recursive_find_paths(config, fields, &root, sub_elements, paths)?;
-                    }
-                }
-
-                break;
-            } else {
-                root.push(value.to_string());
-            }
+    for result in glob::glob(glob_path.to_string_lossy().as_ref())? {
+        let path = result?;
+        if compiled_regex.is_match(path.to_string_lossy().as_ref()) {
+            out_paths.push(path);
         }
-
-        Ok(())
     }
 
-    recursive_find_paths(
-        config,
-        fields,
-        &std::path::PathBuf::new(),
-        &item,
-        &mut paths,
-    )?;
-
-    Ok(paths)
+    Ok(out_paths)
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::{Owner, PathItemArgs, PathType, Permission};
+
     use super::*;
 
     #[test]
     fn test_get_path_success() {
         let config = crate::ConfigBuilder::new()
-            .add_path_item(
-                "key",
-                "/path/to/{thing}",
-                None,
-                &crate::Permission::default(),
-                &crate::Owner::default(),
-                &crate::CopyFile::default(),
-                false,
-            )
+            .add_path_item(PathItemArgs {
+                key: "key".try_into().unwrap(),
+                path: "/path/to/{thing}".into(),
+                parent: None,
+                permission: Permission::default(),
+                owner: Owner::default(),
+                path_type: PathType::default(),
+                deferred: false,
+                metadata: std::collections::HashMap::new(),
+            })
             .unwrap()
             .build()
             .unwrap();
@@ -235,15 +175,16 @@ mod tests {
     #[test]
     fn test_get_fields_success() {
         let config = crate::ConfigBuilder::new()
-            .add_path_item(
-                "key",
-                "/path/to/{thing}",
-                None,
-                &crate::Permission::default(),
-                &crate::Owner::default(),
-                &crate::CopyFile::default(),
-                false,
-            )
+            .add_path_item(PathItemArgs {
+                key: "key".try_into().unwrap(),
+                path: "/path/to/{thing}".into(),
+                parent: None,
+                permission: Permission::default(),
+                owner: Owner::default(),
+                path_type: PathType::default(),
+                deferred: false,
+                metadata: std::collections::HashMap::new(),
+            })
             .unwrap()
             .build()
             .unwrap();
@@ -265,15 +206,16 @@ mod tests {
     #[test]
     fn test_get_key_success() {
         let config = crate::ConfigBuilder::new()
-            .add_path_item(
-                "key",
-                "/path/to/{thing}",
-                None,
-                &crate::Permission::default(),
-                &crate::Owner::default(),
-                &crate::CopyFile::default(),
-                false,
-            )
+            .add_path_item(PathItemArgs {
+                key: "key".try_into().unwrap(),
+                path: "/path/to/{thing}".into(),
+                parent: None,
+                permission: Permission::default(),
+                owner: Owner::default(),
+                path_type: PathType::default(),
+                deferred: false,
+                metadata: std::collections::HashMap::new(),
+            })
             .unwrap()
             .build()
             .unwrap();
@@ -314,25 +256,27 @@ mod tests {
         }
 
         let config = crate::ConfigBuilder::new()
-            .add_path_item(
-                "root",
-                root_dir,
-                None,
-                &crate::Permission::default(),
-                &crate::Owner::default(),
-                &crate::CopyFile::default(),
-                false,
-            )
+            .add_path_item(PathItemArgs {
+                key: "root".try_into().unwrap(),
+                path: root_dir.to_path_buf(),
+                parent: None,
+                permission: Permission::default(),
+                owner: Owner::default(),
+                path_type: PathType::default(),
+                deferred: false,
+                metadata: std::collections::HashMap::new(),
+            })
             .unwrap()
-            .add_path_item(
-                "key",
-                "path/to/{thing}_{frame}.txt",
-                Some("root"),
-                &crate::Permission::default(),
-                &crate::Owner::default(),
-                &crate::CopyFile::default(),
-                false,
-            )
+            .add_path_item(PathItemArgs {
+                key: "key".try_into().unwrap(),
+                path: "path/to/{thing}_{frame}.txt".into(),
+                parent: Some("root".try_into().unwrap()),
+                permission: Permission::default(),
+                owner: Owner::default(),
+                path_type: PathType::File,
+                deferred: false,
+                metadata: std::collections::HashMap::new(),
+            })
             .unwrap()
             .build()
             .unwrap();
