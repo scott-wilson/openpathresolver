@@ -44,7 +44,7 @@ impl FieldKey {
         let mut parsed_key = String::new();
 
         if !Self::validate(&key) {
-            return Err(crate::Error::ParseError("Invalid field key"));
+            return Err(crate::Error::new("Invalid field key"));
         }
 
         Self::parse(&key, &mut parsed_key)?;
@@ -212,35 +212,22 @@ mod tests {
     fn test_tokens_parse_failure(#[case] input: &str, #[case] expected: &str) {
         // New
         let result = FieldKey::new(input).unwrap_err();
-
-        match result {
-            crate::Error::ParseError(message) => assert_eq!(message, expected),
-            _ => panic!("Unexpected error: {:?}", result),
-        }
+        assert_eq!(result.to_string(), expected);
 
         // From<&str>
         let result = FieldKey::try_from(input).unwrap_err();
 
-        match result {
-            crate::Error::ParseError(message) => assert_eq!(message, expected),
-            _ => panic!("Unexpected error: {:?}", result),
-        }
+        assert_eq!(result.to_string(), expected);
 
         // From<String>
         let result = FieldKey::try_from(input.to_string()).unwrap_err();
 
-        match result {
-            crate::Error::ParseError(message) => assert_eq!(message, expected),
-            _ => panic!("Unexpected error: {:?}", result),
-        }
+        assert_eq!(result.to_string(), expected);
 
         // From<&String>
         let result = FieldKey::try_from(&input.to_string()).unwrap_err();
 
-        match result {
-            crate::Error::ParseError(message) => assert_eq!(message, expected),
-            _ => panic!("Unexpected error: {:?}", result),
-        }
+        assert_eq!(result.to_string(), expected);
     }
 
     #[rstest::rstest]

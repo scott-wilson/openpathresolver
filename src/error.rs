@@ -1,48 +1,39 @@
-// TODO: Make the error type more useful/have less branches that aren't actually useful outside of
-// "error came from dependency"
-
 #[derive(Debug, thiserror::Error)]
-pub enum Error {
-    #[error("Formatting error")]
-    FormatError(#[from] std::fmt::Error),
-    #[error("Error while accessing field {0}")]
-    FieldError(String),
-    #[error("Resolver {resolver:?} is incompatible with value {value:?}")]
-    ResolverTypeMismatchError {
-        resolver: crate::Resolver,
-        value: crate::PathValue,
-    },
-    #[error("Parent {0} does not exist")]
-    MissingParentError(crate::FieldKey),
-    #[error("Error while parsing: {0}")]
-    ParseError(&'static str),
-    #[error("Error while creating regex: {0}")]
-    RegexError(#[from] regex::Error),
-    #[error("Error while converting integer type: {0}")]
-    IntegerConvertTypeError(#[from] std::num::TryFromIntError),
-    #[error("Error while parsing integer: {0}")]
-    ParseIntegerError(#[from] std::num::ParseIntError),
-    #[error("The path item {item} parent {parent} causes a infinite recursion")]
-    InfiniteRecursionError {
-        item: crate::FieldKey,
-        parent: crate::FieldKey,
-    },
-    #[error("Could not find item {0}")]
-    MissingItemError(crate::FieldKey),
-    #[error("Field {key} exists in multiple variable parts in the path, but the values are different: {value:?} != {other_value:?}")]
-    MismatchedFieldError {
-        key: crate::FieldKey,
-        value: crate::PathValue,
-        other_value: crate::PathValue,
-    },
-    #[error("Cannot resolve a variable root path")]
-    VariableRootPathError,
-    #[error("IO Error: {0}")]
-    IOError(#[from] std::io::Error),
-    #[error("Glob Error: {0}")]
-    GlobError(#[from] glob::GlobError),
-    #[error("Glob Pattern Error: {0}")]
-    GlobPatternError(#[from] glob::PatternError),
-    #[error("Runtime Error: {0}")]
-    RuntimeError(String),
+#[error("{msg}")]
+pub struct Error {
+    msg: String,
+    #[source]
+    source: Option<Box<dyn std::error::Error + Send>>,
+}
+
+macro_rules! impl_from {
+    ($($e:ty: $t:ty => $msg:expr),+ $(,)?) => {
+        $(impl From<$t> for $e {
+            fn from(value: $t) -> Self {
+                Self {
+                    msg: $msg.into(),
+                    source: Some(Box::new(value)),
+                }
+            }
+        })+
+    };
+}
+
+impl_from!(
+    Error: std::fmt::Error => "Formatting error.",
+    Error: regex::Error => "Error while creating regex.",
+    Error: std::num::TryFromIntError => "Error while converting integer type.",
+    Error: std::num::ParseIntError => "Error while parsing integer.",
+    Error: std::io::Error => "IO Error.",
+    Error: glob::GlobError => "Glob Error.",
+    Error: glob::PatternError => "Glob Pattern Error.",
+);
+
+impl Error {
+    pub fn new<T: Into<String>>(msg: T) -> Self {
+        Self {
+            msg: msg.into(),
+            source: None,
+        }
+    }
 }

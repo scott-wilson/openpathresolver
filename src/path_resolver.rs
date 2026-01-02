@@ -6,7 +6,11 @@ pub fn get_path(
     let key = key.try_into()?;
     let item = match config.get_item(&key) {
         Some(item) => item,
-        None => return Err(crate::Error::MissingItemError(key.clone())),
+        None => {
+            return Err(crate::Error::new(format!(
+                "Could not find path from key: {key}"
+            )))
+        }
     };
 
     let mut path = std::path::PathBuf::new();
@@ -30,7 +34,11 @@ pub fn get_fields(
     let path = path.as_ref();
     let item = match config.get_item(&key) {
         Some(item) => item,
-        None => return Err(crate::Error::MissingItemError(key.clone())),
+        None => {
+            return Err(crate::Error::new(format!(
+                "Could not find fields from key: {key}"
+            )))
+        }
     };
     let mut part_pattern = String::new();
     let mut fields = crate::types::PathAttributes::new();
@@ -95,7 +103,11 @@ pub fn find_paths(
     let key = key.try_into()?;
     let item = match config.get_item(&key) {
         Some(item) => item,
-        None => return Err(crate::Error::MissingItemError(key.clone())),
+        None => {
+            return Err(crate::Error::new(format!(
+                "Could not find paths from key: {key}"
+            )))
+        }
     };
 
     let mut regex_path = std::path::PathBuf::new();

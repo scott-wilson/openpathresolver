@@ -35,7 +35,7 @@ pub fn create_workspace<'py>(
             // the create_workspace args.
             let template_fields = std::sync::Arc::unwrap_or_clone(template_fields);
             let template_fields = convert_fields_from_base(template_fields)
-                .map_err(|err| base_openpathresolver::Error::RuntimeError(err.to_string()))?;
+                .map_err(|err| base_openpathresolver::Error::new(err.to_string()))?;
             Python::attach(|py| -> PyResult<_> {
                 let awaitable = self.0.call(
                     py,
@@ -48,9 +48,9 @@ pub fn create_workspace<'py>(
                 )?;
                 pyo3_async_runtimes::into_future_with_locals(&self.1, awaitable.bind(py).clone())
             })
-            .map_err(|err| base_openpathresolver::Error::RuntimeError(err.to_string()))?
+            .map_err(|err| base_openpathresolver::Error::new(err.to_string()))?
             .await
-            .map_err(|err| base_openpathresolver::Error::RuntimeError(err.to_string()))?;
+            .map_err(|err| base_openpathresolver::Error::new(err.to_string()))?;
 
             Ok(())
         }
