@@ -75,7 +75,7 @@ impl ConfigBuilder {
 
     pub fn add_path_item(mut self, args: crate::PathItemArgs) -> Result<Self, crate::Error> {
         if self.items.contains_key(&args.key) {
-            return Err(crate::Error::FieldError(format!(
+            return Err(crate::Error::new(format!(
                 "'{}' already in path items.",
                 args.key
             )));
@@ -128,10 +128,11 @@ impl ConfigBuilder {
                 match &item.parent {
                     Some(parent) => {
                         if visited.contains(parent) {
-                            return Err(crate::Error::InfiniteRecursionError {
-                                item: item.key.clone(),
-                                parent: parent.clone(),
-                            });
+                            return Err(crate::Error::new(format!(
+                                "Infinite recursion error with item {:?} and parent {:?}",
+                                item.key.as_str(),
+                                parent.as_str()
+                            )));
                         }
 
                         match self.items.get(parent) {
@@ -145,7 +146,7 @@ impl ConfigBuilder {
 
             if let Some(parent) = &item.parent {
                 if !self.items.contains_key(parent) {
-                    return Err(crate::Error::MissingParentError(parent.clone()));
+                    return Err(crate::Error::new(format!("Missing parent: {parent}")));
                 }
             }
         }
@@ -425,12 +426,8 @@ mod tests {
             .unwrap()
             .build()
             .unwrap_err();
-        match err {
-            crate::Error::MissingParentError(parent) => {
-                assert_eq!(parent, "invalid".try_into().unwrap());
-            }
-            _ => panic!("Unexpected error type."),
-        }
+
+        assert_eq!(err.to_string(), "Missing parent: invalid");
     }
 
     #[test]
@@ -461,12 +458,7 @@ mod tests {
             .build()
             .unwrap_err();
 
-        match err {
-            crate::Error::ParseError(msg) => {
-                assert_eq!(msg, "Invalid variable");
-            }
-            _ => panic!("Unexpected error type."),
-        }
+        assert_eq!(err.to_string(), "Parse Error: Invalid variable");
     }
 
     #[test]
@@ -497,21 +489,12 @@ mod tests {
             .build()
             .unwrap_err();
 
-        match err {
-            crate::Error::InfiniteRecursionError { item, parent } => {
-                let item = item.to_string();
-                let parent = parent.to_string();
+        let err_msg = err.to_string();
 
-                if parent == "parent" {
-                    assert_eq!(item.to_string(), "child");
-                    assert_eq!(parent.to_string(), "parent");
-                } else {
-                    assert_eq!(item.to_string(), "parent");
-                    assert_eq!(parent.to_string(), "child");
-                }
-            }
-            _ => panic!("Unexpected error type."),
-        }
+        assert!(
+            err_msg == "Infinite recursion error with item \"child\" and parent \"parent\""
+                || err_msg == "Infinite recursion error with item \"parent\" and parent \"child\""
+        )
     }
 
     #[test]

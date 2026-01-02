@@ -6,11 +6,7 @@ mod types;
 mod workspace_resolver;
 
 pub(crate) use errors::to_py_result;
-pub use errors::{
-    FieldError, FormatError, IOError, InfiniteRecursionError, IntegerConvertTypeError, JoinError,
-    MismatchedFieldError, MissingItemError, MissingParentError, ParseError, ParseIntegerError,
-    RegexError, ResolverTypeMismatchError, VariableRootPathError,
-};
+pub use errors::Error;
 pub use path_resolver::{find_paths, get_fields, get_key, get_path};
 pub use types::{
     Config, FieldKey, IntegerResolver, MetadataValue, Owner, PathItem, PathType, PathValue,
@@ -22,11 +18,7 @@ pub use workspace_resolver::{create_workspace, get_workspace};
 pub mod openpathresolver {
     // Errors
     #[pymodule_export]
-    use super::{
-        FieldError, FormatError, IOError, InfiniteRecursionError, IntegerConvertTypeError,
-        MismatchedFieldError, MissingItemError, MissingParentError, ParseError, ParseIntegerError,
-        RegexError, ResolverTypeMismatchError, VariableRootPathError,
-    };
+    use super::Error;
 
     // Types
     #[pymodule_export]
