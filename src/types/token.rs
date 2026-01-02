@@ -16,12 +16,19 @@ impl Token {
         match self {
             Self::Literal(literal) => match buf.write_str(literal) {
                 Ok(_) => Ok(()),
-                Err(error) => Err(crate::Error::FormatError(error)),
+                Err(error) => Err(crate::Error::new(format!(
+                    "Error while formatting token: {error}"
+                ))),
             },
             Self::Variable(variable) => {
                 let value = match fields.get(variable) {
                     Some(value) => value,
-                    None => return Err(crate::Error::FieldError(variable.to_string())),
+                    None => {
+                        return Err(crate::Error::new(format!(
+                            "Could not find {:?} in the fields.",
+                            variable.as_str()
+                        )))
+                    }
                 };
                 let resolver = match resolvers.get(variable) {
                     Some(resolver) => resolver,
@@ -33,15 +40,16 @@ impl Token {
                             Resolver::Default => 0,
                             Resolver::Integer { padding } => *padding,
                             _ => {
-                                return Err(crate::Error::ResolverTypeMismatchError {
-                                    resolver: resolver.clone(),
-                                    value: value.clone(),
-                                })
+                                return Err(crate::Error::new(format!(
+                                    "Resolver type {resolver:?} is invalid for value {value:?}."
+                                )));
                             }
                         };
                         match write!(buf, "{:0width$}", v, width = padding as usize) {
                             Ok(_) => Ok(()),
-                            Err(error) => Err(crate::Error::FormatError(error)),
+                            Err(error) => Err(crate::Error::new(format!(
+                                "Error while formatting: {error}"
+                            ))),
                         }
                     }
                     PathValue::String(v) => {
@@ -49,16 +57,17 @@ impl Token {
                         match resolver {
                             Resolver::Default | Resolver::String { .. } => (),
                             _ => {
-                                return Err(crate::Error::ResolverTypeMismatchError {
-                                    resolver: resolver.clone(),
-                                    value: value.clone(),
-                                })
+                                return Err(crate::Error::new(format!(
+                                    "Resolver type {resolver:?} is invalid for value {value:?}."
+                                )));
                             }
                         };
 
                         match buf.write_str(v) {
                             Ok(_) => Ok(()),
-                            Err(error) => Err(crate::Error::FormatError(error)),
+                            Err(error) => Err(crate::Error::new(format!(
+                                "Error while formatting: {error}"
+                            ))),
                         }
                     }
                 }
@@ -237,25 +246,25 @@ impl Tokens {
         let start_index = match text.find('{') {
             Some(start_index) => start_index,
             None => match text.find('}') {
-                Some(_) => return Err(crate::Error::ParseError("Missing opening '{'")),
+                Some(_) => return Err(crate::Error::new("Parse Error: Missing opening '{'")),
                 None => return Ok((text, "", "")),
             },
         };
         let (before, after) = text.split_at(start_index);
 
         if before.find('}').is_some() {
-            return Err(crate::Error::ParseError("Missing opening '{'"));
+            return Err(crate::Error::new("Parse Error: Missing opening '{'"));
         }
 
         let end_index = match after.find('}') {
             Some(end_index) => end_index,
-            None => return Err(crate::Error::ParseError("Missing closing '}'")),
+            None => return Err(crate::Error::new("Parse Error: Missing closing '}'")),
         };
         let (inside, after) = after.split_at(end_index + 1);
         let inside = &inside[1..inside.len() - 1].trim();
 
         if !FieldKey::validate(inside) {
-            return Err(crate::Error::ParseError("Invalid variable"));
+            return Err(crate::Error::new("Parse Error: Invalid variable"));
         }
 
         Ok((before, inside, after))
@@ -355,7 +364,10 @@ mod tests {
             .draw(&mut writer, &PathAttributes::new(), &Resolvers::new())
             .unwrap_err();
 
-        assert!(matches!(err, crate::Error::FormatError(_)));
+        assert_eq!(
+            err.to_string(),
+            "Error while formatting token: an error occurred when formatting an argument"
+        );
     }
 
     #[rstest::rstest]
@@ -399,10 +411,7 @@ mod tests {
             .draw(&mut writer, &PathAttributes::new(), &Resolvers::new())
             .unwrap_err();
 
-        match err {
-            crate::Error::FieldError(field) => assert_eq!(field, "test"),
-            _ => panic!("Unexpected error: {:?}", err),
-        }
+        assert_eq!(err.to_string(), "Could not find \"test\" in the fields.");
     }
 
     #[test]
@@ -424,13 +433,10 @@ mod tests {
         };
         let err = token.draw(&mut writer, &fields, &resolvers).unwrap_err();
 
-        match err {
-            crate::Error::ResolverTypeMismatchError { resolver, value } => {
-                assert!(matches!(resolver, Resolver::String { pattern: None }));
-                assert_eq!(value, 1u8.into());
-            }
-            _ => panic!("Unexpected error: {:?}", err),
-        }
+        assert_eq!(
+            err.to_string(),
+            "Resolver type String { pattern: None } is invalid for value Integer(1)."
+        );
     }
 
     #[test]
@@ -449,13 +455,10 @@ mod tests {
         };
         let err = token.draw(&mut writer, &fields, &resolvers).unwrap_err();
 
-        match err {
-            crate::Error::ResolverTypeMismatchError { resolver, value } => {
-                assert!(matches!(resolver, Resolver::Integer { padding: 1 }));
-                assert_eq!(value, "test".into());
-            }
-            _ => panic!("Unexpected error: {:?}", err),
-        }
+        assert_eq!(
+            err.to_string(),
+            "Resolver type Integer { padding: 1 } is invalid for value String(\"test\")."
+        );
     }
 
     #[rstest::rstest]
@@ -479,7 +482,10 @@ mod tests {
             .draw(&mut writer, &fields, &Resolvers::new())
             .unwrap_err();
 
-        assert!(matches!(err, crate::Error::FormatError(_)));
+        assert_eq!(
+            err.to_string(),
+            "Error while formatting: an error occurred when formatting an argument"
+        );
     }
 
     #[rstest::rstest]
@@ -516,10 +522,7 @@ mod tests {
     fn test_tokens_parse_failure(#[case] input: &str, #[case] expected: &str) {
         let result = Tokens::parse(input).unwrap_err();
 
-        match result {
-            crate::Error::ParseError(message) => assert_eq!(message, expected),
-            _ => panic!("Unexpected error: {:?}", result),
-        }
+        assert_eq!(result.to_string(), format!("Parse Error: {expected}"));
     }
 
     #[rstest::rstest]
@@ -556,10 +559,7 @@ mod tests {
     fn test_tokens_new_failure(#[case] input: &str, #[case] expected: &str) {
         let result = Tokens::new(&input).unwrap_err();
 
-        match result {
-            crate::Error::ParseError(message) => assert_eq!(message, expected),
-            _ => panic!("Unexpected error: {:?}", result),
-        }
+        assert_eq!(result.to_string(), format!("Parse Error: {expected}"));
     }
 
     #[rstest::rstest]
@@ -599,13 +599,13 @@ mod tests {
     }
 
     #[rstest::rstest]
-    #[case("{test_str}")]
-    #[case("{test_int}")]
-    #[case("abc {test_str}")]
-    #[case("abc {test_int}")]
-    #[case("{test_str} abc")]
-    #[case("{test_int} abc")]
-    fn test_tokens_draw_failure(#[case] input: &str) {
+    #[case("{test_str}", "test_str")]
+    #[case("{test_int}", "test_int")]
+    #[case("abc {test_str}", "test_str")]
+    #[case("abc {test_int}", "test_int")]
+    #[case("{test_str} abc", "test_str")]
+    #[case("{test_int} abc", "test_int")]
+    fn test_tokens_draw_failure(#[case] input: &str, #[case] expected: &str) {
         let tokens = Tokens::new(&input).unwrap();
 
         let mut writer = String::new();
@@ -613,7 +613,10 @@ mod tests {
             .draw(&mut writer, &PathAttributes::new(), &Resolvers::new())
             .unwrap_err();
 
-        assert!(matches!(result, crate::Error::FieldError(_)));
+        assert_eq!(
+            result.to_string(),
+            format!("Could not find {expected:?} in the fields.")
+        );
     }
 
     #[rstest::rstest]
