@@ -12,6 +12,16 @@ impl<'de> serde::de::Visitor<'de> for FieldKeyVisitor {
     }
 }
 
+/// A field key is a valid key to a field.
+///
+/// This can be used for path parts keys, the parent key, etc.
+///
+/// # Validation
+///
+/// - The key must not be empty
+/// - The first character of the key must be any ASCII alphabetic character or `_`.
+/// - The remainder characters must be any ASCII alphanumeric character or `_`.
+/// - Sections can be split with `.`. The above rules then apply to each section.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct FieldKey {
     key: String,
@@ -39,6 +49,7 @@ impl std::fmt::Display for FieldKey {
 }
 
 impl FieldKey {
+    /// Create a new field key.
     pub fn new(key: &str) -> Result<Self, crate::Error> {
         let key = key.to_lowercase();
         let mut parsed_key = String::new();
@@ -51,6 +62,7 @@ impl FieldKey {
         Ok(Self { key: parsed_key })
     }
 
+    /// Access the internal key string.
     pub fn as_str(&self) -> &str {
         &self.key
     }

@@ -1,5 +1,12 @@
+/// A helper trait for running the create workspace logic.
+///
+/// The [create_workspace] function hands over the responsibility of creating files and folders to
+/// the type that implements this trait. The resolver does not assume anything about the
+/// permissions or ownership aside from "this path is owned by a user" or "this path is read only".
 #[async_trait::async_trait]
 pub trait CreateWorkspaceIoFunction {
+    /// The function that gets called by the [create_workspace] function when building the
+    /// workspace.
     async fn call(
         &self,
         config: std::sync::Arc<crate::Config>,
@@ -8,6 +15,92 @@ pub trait CreateWorkspaceIoFunction {
     ) -> Result<(), crate::Error>;
 }
 
+/// Build a workspace by creating the files and folders for the given fields.
+///
+/// The create workspace function will use the `path_fields` to decide if a path should be built or
+/// not. In other words, this will create paths that can be resolved with the path fields, but
+/// other paths will not be created.
+///
+/// # Example
+///
+/// ```rust
+/// # use openpathresolver::{ConfigBuilder, create_workspace, Owner, PathItemArgs, PathType, Permission, Error, CreateWorkspaceIoFunction, FieldKey, TemplateValue, ResolvedPathItem, Config};
+/// struct Func;
+///
+/// #[async_trait::async_trait]
+/// impl CreateWorkspaceIoFunction for Func {
+///     async fn call(
+///         &self,
+///         _config: std::sync::Arc<Config>,
+///         _template_fields: std::sync::Arc<std::collections::HashMap<FieldKey, TemplateValue>>,
+///         _path_item: ResolvedPathItem,
+///     ) -> Result<(), Error> {
+///         Ok(())
+///     }
+/// }
+///
+/// # #[tokio::main]
+/// # async fn main() {
+/// let config = ConfigBuilder::new()
+///     .add_path_item(PathItemArgs {
+///         key: "key1".try_into().unwrap(),
+///         path: "/path/to/{thing}".into(),
+///         parent: None,
+///         permission: Permission::default(),
+///         owner: Owner::default(),
+///         path_type: PathType::default(),
+///         deferred: false,
+///         metadata: std::collections::HashMap::new(),
+///     })
+///     .unwrap()
+///     .add_path_item(PathItemArgs {
+///         key: "key2".try_into().unwrap(),
+///         path: "/path/to/a/{thing}".into(),
+///         parent: None,
+///         permission: Permission::default(),
+///         owner: Owner::default(),
+///         path_type: PathType::default(),
+///         deferred: false,
+///         metadata: std::collections::HashMap::new(),
+///     })
+///     .unwrap()
+///     .add_path_item(PathItemArgs {
+///         key: "key3".try_into().unwrap(),
+///         path: "/path/to/b/{thing}".into(),
+///         parent: None,
+///         permission: Permission::default(),
+///         owner: Owner::default(),
+///         path_type: PathType::default(),
+///         deferred: false,
+///         metadata: std::collections::HashMap::new(),
+///     })
+///     .unwrap()
+///     .build()
+///     .unwrap();
+///
+/// let path_fields = {
+///     let mut fields = std::collections::HashMap::new();
+///     fields.insert("thing".try_into().unwrap(), "value".into());
+///
+///     fields
+/// };
+/// let template_fields = {
+///     let mut fields = std::collections::HashMap::new();
+///     fields.insert("thing".try_into().unwrap(), "value".into());
+///
+///     fields
+/// };
+///
+/// create_workspace(
+///     std::sync::Arc::new(config),
+///     &path_fields,
+///     std::sync::Arc::new(template_fields),
+///     Func,
+/// )
+/// .await
+/// .unwrap();
+/// # }
+/// ```
 pub async fn create_workspace<Func: CreateWorkspaceIoFunction + Send + Sync + 'static>(
     config: std::sync::Arc<crate::Config>,
     path_fields: &crate::types::PathAttributes,
@@ -49,6 +142,65 @@ pub async fn create_workspace<Func: CreateWorkspaceIoFunction + Send + Sync + 's
     Ok(())
 }
 
+/// Get all of the path items that would be created with the [create_workspace] function.
+///
+/// The only paths that will be returned are paths that can be fully resolved with the given path
+/// fields.
+///
+/// # Example
+///
+/// ```rust
+/// # use openpathresolver::{ConfigBuilder, get_workspace, Owner, PathItemArgs, PathType, Permission};
+/// let config = ConfigBuilder::new()
+///     .add_path_item(PathItemArgs {
+///         key: "key1".try_into().unwrap(),
+///         path: "/path/to/{thing}".into(),
+///         parent: None,
+///         permission: Permission::default(),
+///         owner: Owner::default(),
+///         path_type: PathType::default(),
+///         deferred: false,
+///         metadata: std::collections::HashMap::new(),
+///     })
+///     .unwrap()
+///     .add_path_item(PathItemArgs {
+///         key: "key2".try_into().unwrap(),
+///         path: "/path/to/a/{thing}".into(),
+///         parent: None,
+///         permission: Permission::default(),
+///         owner: Owner::default(),
+///         path_type: PathType::default(),
+///         deferred: false,
+///         metadata: std::collections::HashMap::new(),
+///     })
+///     .unwrap()
+///     .add_path_item(PathItemArgs {
+///         key: "key3".try_into().unwrap(),
+///         path: "/path/to/b/{thing}".into(),
+///         parent: None,
+///         permission: Permission::default(),
+///         owner: Owner::default(),
+///         path_type: PathType::default(),
+///         deferred: false,
+///         metadata: std::collections::HashMap::new(),
+///     })
+///     .unwrap()
+///     .build()
+///     .unwrap();
+///
+/// let fields = {
+///     let mut fields = std::collections::HashMap::new();
+///     fields.insert("thing".try_into().unwrap(), "value".into());
+///
+///     fields
+/// };
+///
+/// get_workspace(
+///     &config,
+///     &fields,
+/// )
+/// .unwrap();
+/// ```
 pub fn get_workspace(
     config: &crate::Config,
     path_fields: &crate::types::PathAttributes,

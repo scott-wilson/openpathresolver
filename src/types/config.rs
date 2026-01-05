@@ -1,5 +1,10 @@
 use crate::types::{FieldKey, PathItem, PathItemArgs, Resolver, Resolvers, Tokens};
 
+/// Store the resolver configs.
+///
+/// The config stores two major components. The resolvers, which are responsible for resolving the
+/// placholder values, and the items, which are all of the path parts that are used to find paths
+/// or used to create paths.
 #[derive(Debug, Clone)]
 pub struct Config {
     pub(crate) resolvers: Resolvers,
@@ -32,6 +37,9 @@ impl Config {
     }
 }
 
+/// Build a config.
+///
+/// This will build a config from the input resolvers and then validate and output the config.
 #[derive(Debug, Default)]
 pub struct ConfigBuilder {
     resolvers: Resolvers,
@@ -39,6 +47,7 @@ pub struct ConfigBuilder {
 }
 
 impl ConfigBuilder {
+    /// Prepare a new builder.
     pub fn new() -> Self {
         Self {
             resolvers: std::collections::HashMap::new(),
@@ -46,6 +55,19 @@ impl ConfigBuilder {
         }
     }
 
+    /// Add a string resolver.
+    ///
+    /// The string resolver is the simplest type of resolver. It doesn't have much context other
+    /// than this is a string of characters, and maybe the expected shape of the string (if the
+    /// regex pattern is specified). The pattern, if specified, must follow these rules:
+    ///
+    /// - It must be as non-greedy as possible (for example, use `\w+?` instead of `\w+`). This
+    ///   prevents the pattern from consuming more than it should.
+    /// - It must not use any anchors such as `^` or `$`. When the system builds the internal regex
+    ///   from the supplied regexes, it will automatically add the anchors to make the path query
+    ///   more specific.
+    /// - It must not use capturing groups. The internal regex may create capture groups when
+    ///   extracting the field values from paths.
     pub fn add_string_resolver(
         mut self,
         key: impl TryInto<crate::FieldKey, Error = crate::Error>,
@@ -63,6 +85,12 @@ impl ConfigBuilder {
         Ok(self)
     }
 
+    /// Add an integer resolver.
+    ///
+    /// Integer resolvers will create integers with zero padding. When the integers are being
+    /// extracted from a path, then only numbers with a minimum number of characters based on the
+    /// padding are considered valid. For example, if the padding is 3 then `1` and `12` are
+    /// invalid, but `001`, `012`, `123`, and `1234` are valid.
     pub fn add_integer_resolver(
         mut self,
         key: impl TryInto<crate::FieldKey, Error = crate::Error>,
@@ -73,6 +101,10 @@ impl ConfigBuilder {
         Ok(self)
     }
 
+    /// Add a path item.
+    ///
+    /// Path items are parts of paths that are either fully resolved (contain no placeholders), or
+    /// partially resolved (contains placeholders). See [PathItemArgs](crate::PathItemArgs) for more information.
     pub fn add_path_item(mut self, args: crate::PathItemArgs) -> Result<Self, crate::Error> {
         if self.items.contains_key(&args.key) {
             return Err(crate::Error::new(format!(
@@ -85,6 +117,14 @@ impl ConfigBuilder {
         Ok(self)
     }
 
+    /// Build the config from the builder.
+    ///
+    /// # Errors
+    ///
+    /// - Path items must not form a circular dependency through the parent key.
+    /// - If a path item defines a parent, the parent must be defined in the current builder.
+    /// - If the path parts have placeholders, then the syntax must be correct. However, a
+    ///   placeholder does not need to reference a resolver (it will assume a string resolver).
     pub fn build(mut self) -> Result<Config, crate::Error> {
         // Find items with parents that cause infinite recursion errors.
         let mut queue = std::collections::VecDeque::new();

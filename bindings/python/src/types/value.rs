@@ -1,5 +1,6 @@
 use pyo3::{exceptions::PyTypeError, prelude::*, IntoPyObjectExt};
 
+/// A value for a path.
 #[derive(Clone)]
 pub struct PathValue {
     pub(crate) inner: base_openpathresolver::PathValue,
@@ -55,6 +56,9 @@ impl From<PathValue> for base_openpathresolver::PathValue {
     }
 }
 
+/// A value for a template.
+///
+/// This is similar to a JSON type.
 #[derive(Clone)]
 pub struct TemplateValue {
     pub(crate) inner: base_openpathresolver::TemplateValue,
@@ -136,6 +140,9 @@ impl From<TemplateValue> for base_openpathresolver::TemplateValue {
     }
 }
 
+/// A value for metadata.
+///
+/// This is similar to a JSON type.
 #[derive(Clone)]
 pub struct MetadataValue {
     pub(crate) inner: base_openpathresolver::MetadataValue,

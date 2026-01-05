@@ -2,6 +2,11 @@ use pyo3::{exceptions::PyNotImplementedError, prelude::*};
 
 use crate::errors::to_py_error;
 
+/// Store the resolver configs.
+///
+/// The config stores two major components. The resolvers, which are responsible for resolving the
+/// placholder values, and the items, which are all of the path parts that are used to find paths
+/// or used to create paths.
 #[derive(Debug, Clone)]
 #[pyclass]
 pub struct Config {
@@ -10,6 +15,12 @@ pub struct Config {
 
 #[pymethods]
 impl Config {
+    /// Create a new config.
+    ///
+    /// Args:
+    ///     resolvers: The resolvers for the placeholders. If a resolver is not supplied, then the
+    ///         placholder will default to a simple string resolver.
+    ///     path_items: The path item arguments to resolve.
     #[new]
     fn new<'py>(
         resolvers: std::collections::HashMap<String, Bound<'py, PyAny>>,

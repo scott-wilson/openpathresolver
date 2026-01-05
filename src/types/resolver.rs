@@ -1,16 +1,23 @@
 use serde::Deserialize;
 
+/// The resolver for the placeholders.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub enum Resolver {
+    /// This is an undefined resolver and should be assumed to be a string.
     Default,
+    /// This is a string resolver and may also have a shape.
     #[serde(
         serialize_with = "serialize_regex",
         deserialize_with = "deserialize_regex"
     )]
     String {
+        /// The shape of a valid string.
         pattern: Option<regex::Regex>,
     },
+    /// This is an integer resolver.
     Integer {
+        /// The zero padding to use for the integer, and the minimum number of numerical characters
+        /// to search for.
         padding: u8,
     },
 }

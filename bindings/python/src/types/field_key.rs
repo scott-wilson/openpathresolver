@@ -1,6 +1,16 @@
 use pyo3::prelude::*;
 use std::hash::{Hash, Hasher};
 
+/// A field key is a valid key to a field.
+///
+/// This can be used for path parts keys, the parent key, etc.
+///
+/// # Validation
+///
+/// - The key must not be empty
+/// - The first character of the key must be any ASCII alphabetic character or `_`.
+/// - The remainder characters must be any ASCII alphanumeric character or `_`.
+/// - Sections can be split with `.`. The above rules then apply to each section.
 #[derive(Clone, PartialEq, Eq, Hash)]
 #[pyclass]
 pub struct FieldKey {
