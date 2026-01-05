@@ -1,3 +1,4 @@
+/// Error for the workspace or path resolvers.
 #[derive(Debug, thiserror::Error)]
 #[error("{msg}")]
 pub struct Error {
@@ -30,6 +31,7 @@ impl_from!(
 );
 
 impl Error {
+    /// Create a new error.
     pub fn new<T: Into<String>>(msg: T) -> Self {
         Self {
             msg: msg.into(),

@@ -4,6 +4,14 @@ use crate::errors::to_py_error;
 
 type PathAttributes = std::collections::HashMap<String, crate::PathValue>;
 
+/// Resolve a path from a key and fields.
+///
+/// This will get a path to find in the filesystem or save to based on the input key and fields.
+///
+/// Args:
+///     config: The config to get the path from.
+///     key: The path item's key to generate the path from.
+///     fields: The fields used to fill the placeholders in the path.
 #[pyfunction]
 pub fn get_path(
     config: &crate::Config,
@@ -14,6 +22,12 @@ pub fn get_path(
         .map_err(|err| to_py_error(&err))
 }
 
+/// Try to extract the fields from a key and path.
+///
+/// Args:
+///     config: The config to get the fields from.
+///     key: The path item's key to get the fields from.
+///     path: The path to pull the values from.
 #[pyfunction]
 pub fn get_fields(
     config: &crate::Config,
@@ -34,6 +48,12 @@ pub fn get_fields(
     }
 }
 
+/// Find a key from a path and fields.
+///
+/// Args:
+///     config: The config to get the key from.
+///     path: The path to use to find the key for.
+///     fields: The fields used to fill the placeholders in the path.
 #[pyfunction]
 pub fn get_key(
     config: &crate::Config,
@@ -50,6 +70,20 @@ pub fn get_key(
     }
 }
 
+/// Find paths from a given key and fields.
+///
+/// This differs from the :code:`get_path` because it will search the filesystem for the paths and the
+/// fields do not need to be a superset of the path variables. If a path variable is missing, then
+/// that will signify to the system to return all paths that match that variable's shape. For
+/// example, if a user needs to find all of the versions of the "Widget" publish, and the structure
+/// of the path looks like `"{root}/publishes/{entity}/{version}"`, then the only required fields
+/// will be `root` and `entity`.
+///
+/// Args:
+///     config: The config to find the paths from.
+///     key: The path item's key used to find the paths.
+///     fields: The fields used to fill the placeholders. If a field is not included, then that
+///         represents finding all of the paths of that placeholder type.
 #[pyfunction]
 pub fn find_paths(
     config: &crate::Config,

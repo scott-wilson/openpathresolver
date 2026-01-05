@@ -15,7 +15,7 @@ dynamic = ["version"]
 
 [project.optional-dependencies]
 build = ["maturin ~= 1.9"]
-docs = ["myst-parser ~= 4.0", "sphinx ~= 8.2", "sphinx-rtd-theme ~= 3.0"]
+docs = ["myst-parser", "sphinx", "sphinx-rtd-theme"]
 test = [
   "hypothesis ~= 6.138",
   "pytest ~= 8.4",

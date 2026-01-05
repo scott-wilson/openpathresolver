@@ -9,8 +9,10 @@
 //! and a user needs to build out the "Widget" element, then the system can automatically build out
 //! the file and folder structure needed for the user to do their work.
 
-#[warn(missing_docs)]
-#[deny(unsafe_code)]
+#![deny(missing_docs)]
+#![deny(rustdoc::missing_crate_level_docs)]
+#![deny(unsafe_code)]
+
 mod error;
 mod path_resolver;
 mod types;

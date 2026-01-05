@@ -10,9 +10,12 @@ macro_rules! impl_from {
     };
 }
 
+/// A value for a path.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum PathValue {
+    /// An integer.
     Integer(u16),
+    /// A string.
     String(String),
 }
 
@@ -23,14 +26,24 @@ impl_from!(
     PathValue: u16 => Integer,
 );
 
+/// A value for a template.
+///
+/// This is similar to a JSON type.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum TemplateValue {
+    /// A null value.
     None,
+    /// A boolean.
     Bool(bool),
+    /// An integer.
     Integer(i64),
+    /// A float.
     Float(f64),
+    /// A string.
     String(String),
+    /// An array of template values.
     Array(Vec<TemplateValue>),
+    /// An object or mapping of template values.
     Object(TemplateAttributes),
 }
 
@@ -59,14 +72,24 @@ impl TryFrom<u64> for TemplateValue {
     }
 }
 
+/// A value for metadata.
+///
+/// This is similar to a JSON type.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum MetadataValue {
+    /// A null value.
     None,
+    /// A boolean.
     Bool(bool),
+    /// An integer.
     Integer(i64),
+    /// A float.
     Float(f64),
+    /// A string.
     String(String),
+    /// An array of metadata values.
     Array(Vec<MetadataValue>),
+    /// An object or mapping of metadata values.
     Object(std::collections::HashMap<String, MetadataValue>),
 }
 

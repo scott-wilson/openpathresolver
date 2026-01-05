@@ -1,3 +1,44 @@
+/// Resolve a path from a key and fields.
+///
+/// This will get a path to find in the filesystem or save to based on the input key and fields.
+///
+/// # Errors
+///
+/// - The key needs to be in the input config struct.
+/// - The path variables need to be a subset of the fields. For example, `"{one}/{two}/{three}"` with
+///   the fields `{"one": 1, "two": 2, "three": 3}` is valid, but `"{one}/{two}/{three}"` with the
+///   fields `{"one": 1}` is invalid.
+///
+/// # Example
+///
+/// ```rust
+/// # use openpathresolver::{ConfigBuilder, get_path, Owner, PathItemArgs, PathType, Permission};
+/// let config = ConfigBuilder::new()
+///     .add_path_item(PathItemArgs {
+///         key: "key".try_into().unwrap(),
+///         path: "/path/to/{thing}".into(),
+///         parent: None,
+///         permission: Permission::default(),
+///         owner: Owner::default(),
+///         path_type: PathType::default(),
+///         deferred: false,
+///         metadata: std::collections::HashMap::new(),
+///     })
+///     .unwrap()
+///     .build()
+///     .unwrap();
+///
+/// let fields = {
+///     let mut fields = std::collections::HashMap::new();
+///     fields.insert("thing".try_into().unwrap(), "value".into());
+///
+///     fields
+/// };
+///
+/// let path = get_path(&config, "key", &fields).unwrap();
+///
+/// assert_eq!(path, std::path::PathBuf::from("/path/to/value"));
+/// ```
 pub fn get_path(
     config: &crate::Config,
     key: impl TryInto<crate::FieldKey, Error = crate::Error>,
@@ -25,6 +66,43 @@ pub fn get_path(
     Ok(path)
 }
 
+/// Try to extract the fields from a key and path.
+///
+/// # Errors
+///
+/// - The key needs to be in the input config struct.
+///
+/// # Example
+///
+/// ```rust
+/// # use openpathresolver::{ConfigBuilder, get_fields, Owner, PathItemArgs, PathType, Permission};
+/// let config = ConfigBuilder::new()
+///     .add_path_item(PathItemArgs {
+///         key: "key".try_into().unwrap(),
+///         path: "/path/to/{thing}".into(),
+///         parent: None,
+///         permission: Permission::default(),
+///         owner: Owner::default(),
+///         path_type: PathType::default(),
+///         deferred: false,
+///         metadata: std::collections::HashMap::new(),
+///     })
+///     .unwrap()
+///     .build()
+///     .unwrap();
+///
+/// let path = std::path::PathBuf::from("/path/to/value");
+/// let fields = get_fields(&config, "key", &path).unwrap();
+///
+/// let expected_fields = {
+///     let mut fields = std::collections::HashMap::new();
+///     fields.insert("thing".try_into().unwrap(), "value".into());
+///
+///     Some(fields)
+/// };
+///
+/// assert_eq!(fields, expected_fields);
+/// ```
 pub fn get_fields(
     config: &crate::Config,
     key: impl TryInto<crate::FieldKey, Error = crate::Error>,
@@ -77,6 +155,39 @@ pub fn get_fields(
     Ok(Some(fields))
 }
 
+/// Find a key from a path and fields.
+///
+/// # Example
+///
+/// ```rust
+/// # use openpathresolver::{ConfigBuilder, get_key, Owner, PathItemArgs, PathType, Permission};
+/// let config = ConfigBuilder::new()
+///     .add_path_item(PathItemArgs {
+///         key: "key".try_into().unwrap(),
+///         path: "/path/to/{thing}".into(),
+///         parent: None,
+///         permission: Permission::default(),
+///         owner: Owner::default(),
+///         path_type: PathType::default(),
+///         deferred: false,
+///         metadata: std::collections::HashMap::new(),
+///     })
+///     .unwrap()
+///     .build()
+///     .unwrap();
+///
+/// let fields = {
+///     let mut fields = std::collections::HashMap::new();
+///     fields.insert("thing".try_into().unwrap(), "value".into());
+///
+///     fields
+/// };
+///
+/// let path = std::path::PathBuf::from("/path/to/value");
+/// let key = get_key(&config, &path, &fields).unwrap();
+///
+/// assert_eq!(key.map(|k| k.as_str()), Some("key"));
+/// ```
 pub fn get_key<'a>(
     config: &'a crate::Config,
     path: impl AsRef<std::path::Path>,
@@ -95,6 +206,43 @@ pub fn get_key<'a>(
     Ok(None)
 }
 
+/// Find paths from a given key and fields.
+///
+/// This differs from the [get_path] because it will search the filesystem for the paths and the
+/// fields do not need to be a superset of the path variables. If a path variable is missing, then
+/// that will signify to the system to return all paths that match that variable's shape. For
+/// example, if a user needs to find all of the versions of the "Widget" publish, and the structure
+/// of the path looks like `"{root}/publishes/{entity}/{version}"`, then the only required fields
+/// will be `root` and `entity`.
+///
+/// # Example
+///
+/// ```rust
+/// # use openpathresolver::{ConfigBuilder, find_paths, Owner, PathItemArgs, PathType, Permission};
+/// let config = ConfigBuilder::new()
+///     .add_path_item(PathItemArgs {
+///         key: "key".try_into().unwrap(),
+///         path: "/path/to/{thing}".into(),
+///         parent: None,
+///         permission: Permission::default(),
+///         owner: Owner::default(),
+///         path_type: PathType::default(),
+///         deferred: false,
+///         metadata: std::collections::HashMap::new(),
+///     })
+///     .unwrap()
+///     .build()
+///     .unwrap();
+///
+/// let fields = {
+///     let mut fields = std::collections::HashMap::new();
+///     fields.insert("thing".try_into().unwrap(), "value".into());
+///
+///     fields
+/// };
+///
+/// find_paths(&config, "key", &fields);
+/// ```
 pub fn find_paths(
     config: &crate::Config,
     key: impl TryInto<crate::FieldKey, Error = crate::Error>,
