@@ -1,6 +1,6 @@
 [project]
 name = "openpathresolver"
-description = "A simple pubilsh framework"
+description = "A simple path resolver framework"
 readme = "README.md"
 requires-python = "~=3.9"
 license = { text = "MIT OR Apache-2.0" }
@@ -14,15 +14,19 @@ dependencies = ["typing-extensions ~= 4.15"]
 dynamic = ["version"]
 
 [project.optional-dependencies]
-build = ["maturin ~= 1.9"]
+build = [
+  "maturin ~= 1.9; platform_system != \"Linux\"",
+  "maturin[patchelf] ~= 1.9; platform_system == \"Linux\"",
+]
 docs = ["myst-parser", "sphinx", "sphinx-rtd-theme"]
+fuzz = ["openchecks[test]", "atheris"]
 test = [
-  "hypothesis ~= 6.138",
-  "pytest ~= 8.4",
-  "pytest-asyncio ~= 1.2",
-  "pytest-cov ~= 7.0",
-  "pytest-xdist ~= 3.8",
-  "ruff ~= 0.13",
+  "hypothesis",
+  "pytest",
+  "pytest-asyncio",
+  "pytest-cov",
+  "pytest-xdist",
+  "ruff",
 ]
 
 [build-system]
