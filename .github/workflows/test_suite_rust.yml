@@ -1,0 +1,70 @@
+name: Rust Test Suite
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - .github/workflows/*_rust.yml
+      - src/**
+      - tests/**
+      - Cargo.lock
+      - Cargo.toml
+      - deny.toml
+  pull_request:
+    paths:
+      - .github/workflows/*_rust.yml
+      - src/**
+      - tests/**
+      - Cargo.lock
+      - Cargo.toml
+      - deny.toml
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Rust test
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+          - macos-latest
+    runs-on: ${{matrix.os}}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      - uses: dtolnay/rust-toolchain@4305c38b25d97ef35a8ad1f985ccf2d2242004f2 # stable
+      - uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2.8.2
+        with:
+          shared-key: lang-rust-${{runner.os}}
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@dfcb1ee29051d97c8d0f2d437199570008fd5612 # v2.65.15
+        with:
+          tool: cargo-llvm-cov
+      - name: Run Cargo Clippy
+        run: cargo clippy
+      - name: Run Cargo Fmt
+        run: cargo fmt --check
+      - name: Run Cargo Deny
+        uses: EmbarkStudios/cargo-deny-action@76cd80eb775d7bbbd2d80292136d74d39e1b4918 # v2.0.14
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+      - name: Generate coverage report from Rust tests
+        run: cargo llvm-cov --all-features --lcov --output-path lcov.info
+      - name: Run examples
+        run: |
+          cargo run --example async_auto_fix
+          cargo run --example async_check
+          cargo run --example auto_fix
+          cargo run --example check
+      - name: Run doc tests
+        run: cargo test --doc
+      - uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de # v5.5.2
+        with:
+          files: lcov.info
+          flags: lang-rust
