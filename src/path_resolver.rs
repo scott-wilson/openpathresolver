@@ -50,7 +50,7 @@ pub fn get_path(
         None => {
             return Err(crate::Error::new(format!(
                 "Could not find path from key: {key}"
-            )))
+            )));
         }
     };
 
@@ -115,7 +115,7 @@ pub fn get_fields(
         None => {
             return Err(crate::Error::new(format!(
                 "Could not find fields from key: {key}"
-            )))
+            )));
         }
     };
     let mut part_pattern = String::new();
@@ -254,7 +254,7 @@ pub fn find_paths(
         None => {
             return Err(crate::Error::new(format!(
                 "Could not find paths from key: {key}"
-            )))
+            )));
         }
     };
 

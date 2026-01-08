@@ -27,7 +27,7 @@ impl Token {
                         return Err(crate::Error::new(format!(
                             "Could not find {:?} in the fields.",
                             variable.as_str()
-                        )))
+                        )));
                     }
                 };
                 let resolver = match resolvers.get(variable) {

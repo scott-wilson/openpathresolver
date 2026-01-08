@@ -1,4 +1,4 @@
-use pyo3::{exceptions::PyTypeError, prelude::*, IntoPyObjectExt};
+use pyo3::{IntoPyObjectExt, exceptions::PyTypeError, prelude::*};
 
 /// A value for a path.
 #[derive(Clone)]
