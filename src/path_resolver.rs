@@ -109,7 +109,12 @@ pub fn get_fields(
     path: impl AsRef<std::path::Path>,
 ) -> Result<Option<crate::types::PathAttributes>, crate::Error> {
     let key = key.try_into()?;
-    let path = path.as_ref();
+    let path = std::path::PathBuf::from(
+        path.as_ref()
+            .to_string_lossy()
+            .replace("\\", "/")
+            .replace("/", std::path::MAIN_SEPARATOR_STR),
+    );
     let item = match config.get_item(&key) {
         Some(item) => item,
         None => {
