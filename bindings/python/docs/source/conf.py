@@ -8,7 +8,7 @@
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
-project = "Open Checks Framework"
+project = "Open Path Resolver Framework"
 copyright = "2024, Scott Wilson"  # noqa: A001
 author = "Scott Wilson"
 release = "0.1.0"

@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import pathlib
-
-import pytest
+from typing import TYPE_CHECKING
 
 import openpathresolver
+
+if TYPE_CHECKING:
+    import pytest
 
 
 def test_get_path_success() -> None:
