@@ -1,0 +1,112 @@
+name: Python Test Suite
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - .github/workflows/*_python.yml
+      - bindings/python/**
+      - src/**
+      - Cargo.lock
+      - Cargo.toml
+      - deny.toml
+      - .gitmodules
+  pull_request:
+    paths:
+      - .github/workflows/*_python.yml
+      - bindings/python/**
+      - src/**
+      - Cargo.lock
+      - Cargo.toml
+      - deny.toml
+      - .gitmodules
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Python test
+    defaults:
+      run:
+        working-directory: bindings/python
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+          - macos-latest
+        python-version:
+          - version: "3.9"
+            freethreaded: false
+          - version: "3.10"
+            freethreaded: false
+          - version: "3.11"
+            freethreaded: false
+          - version: "3.12"
+            freethreaded: false
+          - version: "3.13"
+            freethreaded: false
+          - version: "3.13"
+            freethreaded: true
+          - version: "3" # Latest version
+            freethreaded: false
+          - version: "3" # Latest version
+            freethreaded: true
+    runs-on: ${{matrix.os}}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          submodules: recursive
+      - uses: dtolnay/rust-toolchain@4305c38b25d97ef35a8ad1f985ccf2d2242004f2 # stable
+      - uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2.8.2
+        with:
+          shared-key: lang-python-${{runner.os}}
+      - name: Run Cargo Clippy
+        run: cargo clippy
+      - name: Run Cargo Fmt
+        run: cargo fmt --check
+      - name: Run Cargo Deny
+        uses: EmbarkStudios/cargo-deny-action@76cd80eb775d7bbbd2d80292136d74d39e1b4918 # v2.0.14
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+      - name: Setup Python ${{matrix.python-version.version}} freethreaded=${{matrix.python-version.freethreaded}}
+        id: setup-python
+        uses: actions/setup-python@83679a892e2d95755f2dac6acb0bfd1e9ac5d548 # v6.1.0
+        with:
+          python-version: ${{matrix.python-version.version}}
+          freethreaded: ${{matrix.python-version.freethreaded}}
+          cache: 'pip'
+      - name: Install dependencies
+        run: python -m pip install .[test,docs]
+      - name: Lint with Ruff
+        run: |
+          python -m ruff check --output-format=github .
+      - name: Format with Ruff
+        run: |
+          python -m ruff format --check .
+      - name: Build Rust
+        uses: PyO3/maturin-action@86b9d133d34bc1b40018696f782949dac11bd380 # v1.49.4
+        with:
+          sccache: 'true'
+          manylinux: auto
+          working-directory: bindings/python
+      - name: Prepare tests
+        run: |
+          python -m pip install openchecks --find-links target/wheels
+      - name: Run tests
+        run: |
+          python -m pytest --hypothesis-profile default -n=auto tests/
+      - name: Run examples
+        run: |
+          python examples/async_auto_fix.py
+          python examples/async_check.py
+          python examples/auto_fix.py
+          python examples/check.py
+      - name: Run doc tests
+        run: |
+          python -m sphinx -b=doctest docs/source docs/build

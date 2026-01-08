@@ -19,7 +19,7 @@ build = [
   "maturin[patchelf] ~= 1.9; platform_system == \"Linux\"",
 ]
 docs = ["myst-parser", "sphinx", "sphinx-rtd-theme"]
-fuzz = ["openchecks[test]", "atheris"]
+fuzz = ["openpathresolver[test]", "atheris"]
 test = [
   "hypothesis",
   "pytest",
