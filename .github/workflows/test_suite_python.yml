@@ -92,7 +92,7 @@ jobs:
       - name: Build Rust
         uses: PyO3/maturin-action@86b9d133d34bc1b40018696f782949dac11bd380 # v1.49.4
         with:
-          sccache: "true"
+          # sccache: "true"
           manylinux: auto
           working-directory: bindings/python
       - name: Prepare tests
