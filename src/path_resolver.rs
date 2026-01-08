@@ -258,10 +258,12 @@ pub fn find_paths(
         }
     };
 
-    let mut regex_path = std::path::PathBuf::new();
+    let mut regex_pattern = String::new();
     let mut glob_path = std::path::PathBuf::new();
 
-    for part in item.iter() {
+    regex_pattern.push('^');
+
+    for (index, part) in item.iter().enumerate() {
         let mut regex_part = String::new();
         part.path
             .draw_regex_pattern(&mut regex_part, &config.resolvers)?;
@@ -275,16 +277,19 @@ pub fn find_paths(
         let mut glob_part = String::new();
         value.draw_glob_pattern(&mut glob_part)?;
 
-        regex_path.push(regex_part);
+        regex_pattern.push_str(&regex_part);
+        let last_char = regex_pattern.chars().last().unwrap();
+
+        if index != item.len() - 1 && !(last_char == '/' || last_char == '\\') {
+            regex_pattern.push_str(&regex::escape(std::path::MAIN_SEPARATOR_STR));
+        }
+
         glob_path.push(glob_part);
     }
 
-    let mut regex_pattern = String::new();
-    regex_pattern.push('^');
-    regex_pattern.push_str(regex_path.to_string_lossy().as_ref());
     regex_pattern.push('$');
-    let compiled_regex = regex::Regex::new(&regex_pattern)?;
 
+    let compiled_regex = regex::Regex::new(&regex_pattern)?;
     let mut out_paths = Vec::new();
 
     for result in glob::glob(glob_path.to_string_lossy().as_ref())? {
