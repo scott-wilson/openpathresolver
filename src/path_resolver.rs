@@ -125,6 +125,7 @@ pub fn get_fields(
     };
     let mut part_pattern = String::new();
     let mut fields = crate::types::PathAttributes::new();
+    dbg!(&key, &path, &item);
 
     for (part, path_part) in item.iter().zip(path.iter()) {
         part_pattern.clear();
@@ -135,6 +136,7 @@ pub fn get_fields(
         // TODO: cache this line - building regexes are expensive.
         let regex_pattern = regex::Regex::new(&part_pattern)?;
         let path_part_str = path_part.to_string_lossy();
+        dbg!(&part, &path_part, &part_pattern);
         let captures = match regex_pattern.captures(&path_part_str) {
             Some(captures) => captures,
             None => return Ok(None),
@@ -295,9 +297,12 @@ pub fn find_paths(
 
     let compiled_regex = regex::Regex::new(&regex_pattern)?;
     let mut out_paths = Vec::new();
+    dbg!(&regex_pattern, &glob_path);
 
     for result in glob::glob(glob_path.to_string_lossy().as_ref())? {
         let path = result?;
+        dbg!(&path);
+
         if compiled_regex.is_match(path.to_string_lossy().as_ref()) {
             out_paths.push(path);
         }
