@@ -133,6 +133,7 @@ pub fn get_fields(
             .draw_regex_pattern(&mut part_pattern, &config.resolvers)?;
         part_pattern.push('$');
         // TODO: cache this line - building regexes are expensive.
+        dbg!(&part, &path_part, &part_pattern, &path);
         let regex_pattern = regex::Regex::new(&part_pattern)?;
         let path_part_str = path_part.to_string_lossy();
         let captures = match regex_pattern.captures(&path_part_str) {
