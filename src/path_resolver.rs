@@ -50,7 +50,7 @@ pub fn get_path(
         None => {
             return Err(crate::Error::new(format!(
                 "Could not find path from key: {key}"
-            )))
+            )));
         }
     };
 
@@ -109,13 +109,18 @@ pub fn get_fields(
     path: impl AsRef<std::path::Path>,
 ) -> Result<Option<crate::types::PathAttributes>, crate::Error> {
     let key = key.try_into()?;
-    let path = path.as_ref();
+    let path = std::path::PathBuf::from(
+        path.as_ref()
+            .to_string_lossy()
+            .replace("\\", "/")
+            .replace("/", std::path::MAIN_SEPARATOR_STR),
+    );
     let item = match config.get_item(&key) {
         Some(item) => item,
         None => {
             return Err(crate::Error::new(format!(
                 "Could not find fields from key: {key}"
-            )))
+            )));
         }
     };
     let mut part_pattern = String::new();
@@ -254,14 +259,16 @@ pub fn find_paths(
         None => {
             return Err(crate::Error::new(format!(
                 "Could not find paths from key: {key}"
-            )))
+            )));
         }
     };
 
-    let mut regex_path = std::path::PathBuf::new();
+    let mut regex_pattern = String::new();
     let mut glob_path = std::path::PathBuf::new();
 
-    for part in item.iter() {
+    regex_pattern.push('^');
+
+    for (index, part) in item.iter().enumerate() {
         let mut regex_part = String::new();
         part.path
             .draw_regex_pattern(&mut regex_part, &config.resolvers)?;
@@ -275,20 +282,23 @@ pub fn find_paths(
         let mut glob_part = String::new();
         value.draw_glob_pattern(&mut glob_part)?;
 
-        regex_path.push(regex_part);
+        regex_pattern.push_str(&regex_part);
+
+        if index != item.len() - 1 && !regex_pattern.ends_with(r"[\\/]") {
+            regex_pattern.push_str(r"[\\/]");
+        }
+
         glob_path.push(glob_part);
     }
 
-    let mut regex_pattern = String::new();
-    regex_pattern.push('^');
-    regex_pattern.push_str(regex_path.to_string_lossy().as_ref());
     regex_pattern.push('$');
-    let compiled_regex = regex::Regex::new(&regex_pattern)?;
 
+    let compiled_regex = regex::Regex::new(&regex_pattern)?;
     let mut out_paths = Vec::new();
 
     for result in glob::glob(glob_path.to_string_lossy().as_ref())? {
         let path = result?;
+
         if compiled_regex.is_match(path.to_string_lossy().as_ref()) {
             out_paths.push(path);
         }

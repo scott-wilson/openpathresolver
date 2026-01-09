@@ -25,4 +25,4 @@ pub use types::{
 };
 
 pub use path_resolver::{find_paths, get_fields, get_key, get_path};
-pub use workspace_resolver::{create_workspace, get_workspace, CreateWorkspaceIoFunction};
+pub use workspace_resolver::{CreateWorkspaceIoFunction, create_workspace, get_workspace};

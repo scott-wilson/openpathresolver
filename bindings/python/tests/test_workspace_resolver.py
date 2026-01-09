@@ -1,10 +1,13 @@
 from __future__ import annotations
 
-import collections.abc
+from typing import TYPE_CHECKING
 
 import pytest
 
 import openpathresolver
+
+if TYPE_CHECKING:
+    import collections.abc
 
 
 @pytest.mark.asyncio
@@ -33,8 +36,8 @@ async def test_create_workspace_success(
     )
 
     async def io_function(
-        config: openpathresolver.Config,
-        template_args: collections.abc.Mapping[str, openpathresolver.TemplateValue],
+        config: openpathresolver.Config,  # noqa: ARG001
+        template_args: collections.abc.Mapping[str, openpathresolver.TemplateValue],  # noqa: ARG001
         resolved_path_item: openpathresolver.ResolvedPathItem,
     ) -> None:
         resolved_path_item.value().mkdir(exist_ok=True, parents=True)

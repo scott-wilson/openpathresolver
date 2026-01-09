@@ -418,7 +418,13 @@ mod tests {
         .into_iter()
         .enumerate()
         {
-            assert_eq!(resolved_items[index].value.to_string_lossy(), expected);
+            assert_eq!(
+                resolved_items[index]
+                    .value
+                    .to_string_lossy()
+                    .replace("\\", "/"),
+                expected
+            );
         }
     }
 
