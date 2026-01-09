@@ -2,6 +2,7 @@
 name = "pyopenpathresolver"
 version = "0.1.0"
 edition = "2024"
+readme = "README-PYTHON.md"
 repository = "https://github.com/scott-wilson/openpathresolver/"
 license = "MIT OR Apache-2.0"
 

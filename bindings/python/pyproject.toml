@@ -1,7 +1,7 @@
 [project]
 name = "openpathresolver"
 description = "A simple path resolver framework"
-readme = "README.md"
+readme = "README-PYTHON.md"
 requires-python = "~=3.9"
 license = { text = "MIT OR Apache-2.0" }
 authors = [{ name = "Scott Wilson", email = "scott@propersquid.com" }]
