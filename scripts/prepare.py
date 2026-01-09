@@ -17,16 +17,10 @@ def main(version: str) -> None:
     project_dir = pathlib.Path(__file__).parent.parent
     cargo_files = [
         project_dir / "Cargo.toml",
-        project_dir / "bindings" / "c" / "Cargo.toml",
         project_dir / "bindings" / "python" / "Cargo.toml",
     ]
-    meson_files = [
-        project_dir / "bindings" / "c" / "meson.build",
-        project_dir / "bindings" / "cpp" / "meson.build",
-    ]
-    pyproject_files = [
-        project_dir / "bindings" / "c" / "pyproject.toml",
-    ]
+    meson_files = []
+    pyproject_files = []
 
     for cargo_file in cargo_files:
         _prepare_cargo_file(version_obj, cargo_file)
