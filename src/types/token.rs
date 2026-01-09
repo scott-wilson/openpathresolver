@@ -114,7 +114,7 @@ impl Token {
                     if character == '\\' || character == '/' {
                         buf.write_str(&regex::escape(&escape_buf))?;
                         escape_buf.clear();
-                        buf.write_str("[\\/]")?;
+                        buf.write_str(r"[\\/]")?;
                     } else {
                         escape_buf.push(character);
                     }
