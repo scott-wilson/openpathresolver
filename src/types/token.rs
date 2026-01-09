@@ -139,7 +139,15 @@ impl Token {
 
     fn draw_glob_pattern(&self, buf: &mut impl std::fmt::Write) -> Result<(), crate::Error> {
         match self {
-            Token::Literal(literal) => buf.write_str(literal)?,
+            Token::Literal(literal) => {
+                for character in literal.chars() {
+                    if character == '/' || character == '\\' {
+                        buf.write_char(std::path::MAIN_SEPARATOR)?;
+                    } else {
+                        buf.write_char(character)?;
+                    }
+                }
+            }
             Token::Variable(_) => buf.write_char('*')?,
         };
 
