@@ -133,7 +133,6 @@ pub fn get_fields(
             .draw_regex_pattern(&mut part_pattern, &config.resolvers)?;
         part_pattern.push('$');
         // TODO: cache this line - building regexes are expensive.
-        dbg!(&part, &path_part, &part_pattern, &path);
         let regex_pattern = regex::Regex::new(&part_pattern)?;
         let path_part_str = path_part.to_string_lossy();
         let captures = match regex_pattern.captures(&path_part_str) {
@@ -284,10 +283,9 @@ pub fn find_paths(
         value.draw_glob_pattern(&mut glob_part)?;
 
         regex_pattern.push_str(&regex_part);
-        let last_char = regex_pattern.chars().last().unwrap();
 
-        if index != item.len() - 1 && !(last_char == '/' || last_char == '\\') {
-            regex_pattern.push_str(&regex::escape(std::path::MAIN_SEPARATOR_STR));
+        if index != item.len() - 1 && !regex_pattern.ends_with("[\\/]") {
+            regex_pattern.push_str("[\\/]");
         }
 
         glob_path.push(glob_part);

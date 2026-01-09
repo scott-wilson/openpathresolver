@@ -108,7 +108,20 @@ impl Token {
     ) -> Result<(), crate::Error> {
         match self {
             Self::Literal(literal) => {
-                buf.write_str(&regex::escape(literal))?;
+                let mut escape_buf = String::new();
+
+                for character in literal.chars() {
+                    if character == '\\' || character == '/' {
+                        buf.write_str(&regex::escape(&escape_buf))?;
+                        escape_buf.clear();
+                        buf.write_str("[\\/]")?;
+                    } else {
+                        escape_buf.push(character);
+                    }
+                }
+
+                buf.write_str(&regex::escape(&escape_buf))?;
+
                 Ok(())
             }
             Self::Variable(variable) => {
