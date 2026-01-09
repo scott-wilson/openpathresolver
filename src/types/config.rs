@@ -184,10 +184,10 @@ impl ConfigBuilder {
                 }
             }
 
-            if let Some(parent) = &item.parent {
-                if !self.items.contains_key(parent) {
-                    return Err(crate::Error::new(format!("Missing parent: {parent}")));
-                }
+            if let Some(parent) = &item.parent
+                && !self.items.contains_key(parent)
+            {
+                return Err(crate::Error::new(format!("Missing parent: {parent}")));
             }
         }
 
