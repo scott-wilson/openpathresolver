@@ -12,6 +12,46 @@ type PathAttributes = std::collections::HashMap<String, crate::PathValue>;
 ///     config: The config to get the path from.
 ///     key: The path item's key to generate the path from.
 ///     fields: The fields used to fill the placeholders in the path.
+///
+/// Example:
+///
+///     .. testsetup::
+///
+///         import pathlib
+///         import openpathresolver
+///
+///     .. testcode::
+///
+///         config = openpathresolver.Config(
+///             {
+///                 "int": openpathresolver.IntegerResolver(3),
+///                 "str": openpathresolver.StringResolver(r"\w+"),
+///             },
+///             [
+///                 openpathresolver.PathItem(
+///                     "path",
+///                     "path/to/{int}/{str}_{other}",
+///                     None,
+///                     openpathresolver.Permission.Inherit,
+///                     openpathresolver.Owner.Inherit,
+///                     openpathresolver.PathType.Directory,
+///                     deferred=False,
+///                     metadata={},
+///                 )
+///             ],
+///         )
+///     
+///         path = openpathresolver.get_path(
+///             config,
+///             "path",
+///             {
+///                 "int": 3,
+///                 "str": "test",
+///                 "other": "other_test",
+///             },
+///         )
+///         assert path == pathlib.Path("path/to/003/test_other_test")
+///
 #[pyfunction]
 pub fn get_path(
     config: &crate::Config,
@@ -28,6 +68,44 @@ pub fn get_path(
 ///     config: The config to get the fields from.
 ///     key: The path item's key to get the fields from.
 ///     path: The path to pull the values from.
+///
+/// Example:
+///
+///     .. testsetup::
+///
+///         import pathlib
+///         import openpathresolver
+///
+///     .. testcode::
+///
+///         config = openpathresolver.Config(
+///             {
+///                 "int": openpathresolver.IntegerResolver(3),
+///                 "str": openpathresolver.StringResolver(r"\w+?"),
+///             },
+///             [
+///                 openpathresolver.PathItem(
+///                     "path",
+///                     "path/to/{int}/{str}_{other}",
+///                     None,
+///                     openpathresolver.Permission.Inherit,
+///                     openpathresolver.Owner.Inherit,
+///                     openpathresolver.PathType.Directory,
+///                     deferred=False,
+///                     metadata={},
+///                 )
+///             ],
+///         )
+///     
+///         fields = openpathresolver.get_fields(
+///             config, "path", pathlib.Path("path/to/004/test_other_test")
+///         )
+///         assert fields == {
+///             "int": 4,
+///             "str": "test",
+///             "other": "other_test",
+///         }
+///
 #[pyfunction]
 pub fn get_fields(
     config: &crate::Config,
@@ -54,6 +132,46 @@ pub fn get_fields(
 ///     config: The config to get the key from.
 ///     path: The path to use to find the key for.
 ///     fields: The fields used to fill the placeholders in the path.
+///
+/// Example:
+///
+///     .. testsetup::
+///
+///         import pathlib
+///         import openpathresolver
+///
+///     .. testcode::
+///
+///         config = openpathresolver.Config(
+///             {
+///                 "int": openpathresolver.IntegerResolver(3),
+///                 "str": openpathresolver.StringResolver(r"\w+"),
+///             },
+///             [
+///                 openpathresolver.PathItem(
+///                     "path",
+///                     "path/to/{int}/{str}_{other}",
+///                     None,
+///                     openpathresolver.Permission.Inherit,
+///                     openpathresolver.Owner.Inherit,
+///                     openpathresolver.PathType.Directory,
+///                     deferred=False,
+///                     metadata={},
+///                 )
+///             ],
+///         )
+///     
+///         key = openpathresolver.get_key(
+///             config,
+///             "path/to/003/test_other_test",
+///             {
+///                 "int": 3,
+///                 "str": "test",
+///                 "other": "other_test",
+///             },
+///         )
+///         assert key == "path"
+///
 #[pyfunction]
 pub fn get_key(
     config: &crate::Config,
@@ -84,6 +202,52 @@ pub fn get_key(
 ///     key: The path item's key used to find the paths.
 ///     fields: The fields used to fill the placeholders. If a field is not included, then that
 ///         represents finding all of the paths of that placeholder type.
+///
+/// Example:
+///
+///     .. testsetup::
+///
+///         import tempfile
+///         import pathlib
+///         import openpathresolver
+///
+///     .. testcode::
+///
+///         tmp_root = pathlib.Path(tempfile.mkdtemp())
+///         expected_paths = []
+///     
+///         for index in range(3):
+///             test_dir = tmp_root / "path" / "to" / f"{index:03d}" / "test_other_test"
+///             test_dir.mkdir(parents=True, exist_ok=True)
+///             expected_paths.append(test_dir)
+///     
+///         config = openpathresolver.Config(
+///             {
+///                 "int": openpathresolver.IntegerResolver(3),
+///                 "str": openpathresolver.StringResolver(r"\w+"),
+///             },
+///             [
+///                 openpathresolver.PathItem(
+///                     "path",
+///                     "{root}/path/to/{int}/{str}_{other}",
+///                     None,
+///                     openpathresolver.Permission.Inherit,
+///                     openpathresolver.Owner.Inherit,
+///                     openpathresolver.PathType.Directory,
+///                     deferred=False,
+///                     metadata={},
+///                 )
+///             ],
+///         )
+///     
+///         paths = openpathresolver.find_paths(
+///             config,
+///             "path",
+///             {"root": tmp_root.as_posix(), "str": "test", "other": "other_test"},
+///         )
+///     
+///         assert sorted(paths) == sorted(expected_paths)
+///
 #[pyfunction]
 pub fn find_paths(
     config: &crate::Config,

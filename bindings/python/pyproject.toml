@@ -13,6 +13,13 @@ classifiers = [
 dependencies = ["typing-extensions ~= 4.15"]
 dynamic = ["version"]
 
+[project.urls]
+Changelog = "https://github.com/scott-wilson/openpathresolver/blob/main/CHANGELOG.md"
+Documentation = "https://openpathresolver.readthedocs.io"
+Homepage = "https://openpathresolver.readthedocs.io"
+Issues = "https://github.com/scott-wilson/openpathresolver/issues"
+Repository = "https://github.com/scott-wilson/openpathresolver"
+
 [project.optional-dependencies]
 build = [
   "maturin ~= 1.9; platform_system != \"Linux\"",

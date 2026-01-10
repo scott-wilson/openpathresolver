@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/) and this
 project adheres to [Semantic Versioning](http://semver.org/).
 
+## [unreleased]
+
+### Changed
+
+- [#12](https://github.com/scott-wilson/openpathresolver/issues/12) Fix documentation and added examples.
+
 ## [0.1.0] - 2026-01-09
 
 ### Added
