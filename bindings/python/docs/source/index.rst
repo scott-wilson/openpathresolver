@@ -12,7 +12,7 @@ Welcome to the Open Path Resolver Framework's documentation!
 
    modules
 
-.. include:: ../../README.md
+.. include:: ../../README-PYTHON.md
    :parser: myst_parser.sphinx_
 
 Indices and tables

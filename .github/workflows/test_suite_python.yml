@@ -101,9 +101,11 @@ jobs:
       - name: Run tests
         run: |
           python -m pytest --hypothesis-profile default -n=auto tests/
-      # - name: Run examples
-      #   run: |
-      #     python examples/todo.py
+      - name: Run examples
+        run: |
+          python examples/create_workspace.py
+          python examples/find_paths.py
+          python examples/get_path.py
       - name: Run doc tests
         run: |
           python -m sphinx -b=doctest docs/source docs/build

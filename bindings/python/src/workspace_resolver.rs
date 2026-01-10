@@ -18,6 +18,65 @@ type TemplateAttributes = std::collections::HashMap<String, crate::TemplateValue
 ///     template_fields: The fields used to fill file templates with.
 ///     io_function: This function is responsible for actually creating the workspace and defining
 ///         the rules of the workspace based on the config.
+///
+/// Example:
+///
+///     .. testsetup::
+///
+///         from __future__ import annotations
+///
+///         import asyncio
+///         import tempfile
+///         import pathlib
+///         from typing import TYPE_CHECKING
+///
+///         import openpathresolver
+///
+///         if TYPE_CHECKING:
+///             import collections.abc
+///
+///     .. testcode::
+///
+///         async def main():
+///             tmp_root = pathlib.Path(tempfile.mkdtemp())
+///         
+///             config = openpathresolver.Config(
+///                 {
+///                     "int": openpathresolver.IntegerResolver(3),
+///                     "str": openpathresolver.StringResolver(r"\w+"),
+///                 },
+///                 [
+///                     openpathresolver.PathItem(
+///                         "path",
+///                         "{root}/path/to/{int}/{str}_{other}",
+///                         None,
+///                         openpathresolver.Permission.Inherit,
+///                         openpathresolver.Owner.Inherit,
+///                         openpathresolver.PathType.Directory,
+///                         deferred=False,
+///                         metadata={},
+///                     )
+///                 ],
+///             )
+///         
+///             async def io_function(
+///                 config: openpathresolver.Config,  # noqa: ARG001
+///                 template_args: collections.abc.Mapping[str, openpathresolver.TemplateValue],  # noqa: ARG001
+///                 resolved_path_item: openpathresolver.ResolvedPathItem,
+///             ) -> None:
+///                 resolved_path_item.value().mkdir(exist_ok=True, parents=True)
+///         
+///             await openpathresolver.create_workspace(
+///                 config,
+///                 {"root": tmp_root.as_posix(), "int": 3, "str": "test", "other": "other_test"},
+///                 {},
+///                 io_function,
+///             )
+///         
+///             assert (tmp_root / "path" / "to" / "003" / "test_other_test").is_dir()
+///
+///         asyncio.run(main())
+///
 #[pyfunction]
 pub fn create_workspace<'py>(
     py: Python<'py>,
@@ -86,6 +145,52 @@ pub fn create_workspace<'py>(
 ///
 /// The only paths that will be returned are paths that can be fully resolved with the given path
 /// fields.
+///
+/// Example:
+///
+///     .. testsetup::
+///
+///         import tempfile
+///         import pathlib
+///         import openpathresolver
+///
+///     .. testcode::
+///
+///         tmp_root = pathlib.Path(tempfile.mkdtemp())
+///         
+///         config = openpathresolver.Config(
+///             {
+///                 "int": openpathresolver.IntegerResolver(3),
+///                 "str": openpathresolver.StringResolver(r"\w+"),
+///             },
+///             [
+///                 openpathresolver.PathItem(
+///                     "path",
+///                     "{root}/path/to/{int}/{str}_{other}",
+///                     None,
+///                     openpathresolver.Permission.Inherit,
+///                     openpathresolver.Owner.Inherit,
+///                     openpathresolver.PathType.Directory,
+///                     deferred=False,
+///                     metadata={},
+///                 )
+///             ],
+///         )
+///
+///         result = openpathresolver.get_workspace(
+///             config,
+///             {"root": tmp_root.as_posix(), "int": 3, "str": "test", "other": "other_test"},
+///         )
+///         assert sorted(
+///             [
+///                 tmp_root,
+///                 tmp_root / "path",
+///                 tmp_root / "path" / "to",
+///                 tmp_root / "path" / "to" / "003",
+///                 tmp_root / "path" / "to" / "003" / "test_other_test",
+///             ]
+///         ) == sorted([i.value() for i in result])
+///
 #[pyfunction]
 pub fn get_workspace(
     config: &crate::Config,
