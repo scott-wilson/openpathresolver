@@ -80,32 +80,21 @@ def test_get_workspace_success(
         config,
         {"root": tmp_root.as_posix()},
     )
-    assert sorted(
-        [
-            tmp_root,
-            tmp_root / "path",
-            tmp_root / "path" / "to",
-        ]
-    ) == sorted([i.value() for i in result])
+    expected = []
+    assert expected == sorted([i.value() for i in result])
 
     result = openpathresolver.get_workspace(
         config,
         {"root": tmp_root.as_posix(), "int": 3},
     )
-    assert sorted(
-        [
-            tmp_root,
-            tmp_root / "path",
-            tmp_root / "path" / "to",
-            tmp_root / "path" / "to" / "003",
-        ]
-    ) == sorted([i.value() for i in result])
+    expected = []
+    assert expected == sorted([i.value() for i in result])
 
     result = openpathresolver.get_workspace(
         config,
         {"root": tmp_root.as_posix(), "int": 3, "str": "test", "other": "other_test"},
     )
-    assert sorted(
+    expected = sorted(
         [
             tmp_root,
             tmp_root / "path",
@@ -113,4 +102,5 @@ def test_get_workspace_success(
             tmp_root / "path" / "to" / "003",
             tmp_root / "path" / "to" / "003" / "test_other_test",
         ]
-    ) == sorted([i.value() for i in result])
+    )
+    assert expected == sorted([i.value() for i in result])

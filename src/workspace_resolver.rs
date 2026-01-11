@@ -232,11 +232,6 @@ pub fn get_workspace(
         //  - If any of the child paths for this item are not deferred using the above rules, then
         //    it is not deferred.
         //  - Otherwise, it is deferred.
-        if item.path.has_variable_tokens() {
-            return item.deferred || !item.path.is_resolved_by(path_fields);
-        } else if !item.deferred {
-            return false;
-        }
 
         let child_indexes = parent_children_map.get(&index);
 
@@ -257,7 +252,13 @@ pub fn get_workspace(
             }
         }
 
-        true
+        if item.path.has_variable_tokens() {
+            item.deferred || !item.path.is_resolved_by(path_fields)
+        } else if !item.deferred {
+            false
+        } else {
+            true
+        }
     }
 
     #[allow(clippy::too_many_arguments)]
