@@ -475,6 +475,69 @@ mod tests {
     }
 
     #[test]
+    fn test_get_workspace_deferred_rules_success() {
+        let config = crate::ConfigBuilder::new()
+            .add_path_item(PathItemArgs {
+                key: "root".try_into().unwrap(),
+                path: "/path/to".into(),
+                parent: None,
+                permission: Permission::ReadOnly,
+                owner: Owner::Root,
+                path_type: PathType::default(),
+                deferred: true,
+                metadata: std::collections::HashMap::new(),
+            })
+            .unwrap()
+            .add_path_item(PathItemArgs {
+                key: "child".try_into().unwrap(),
+                path: "a/{thing}".into(),
+                parent: Some("root".try_into().unwrap()),
+                permission: Permission::ReadWrite,
+                owner: Owner::User,
+                path_type: PathType::default(),
+                deferred: false,
+                metadata: std::collections::HashMap::new(),
+            })
+            .unwrap()
+            .build()
+            .unwrap();
+
+        let fields = {
+            let mut fields = crate::types::PathAttributes::new();
+            fields.insert("thing".try_into().unwrap(), "value".into());
+
+            fields
+        };
+        let resolved_items = get_workspace(&config, &fields).unwrap();
+
+        let expected_results = [
+            ("/", Permission::Inherit, Owner::Inherit),
+            ("/path", Permission::Inherit, Owner::Inherit),
+            ("/path/to", Permission::ReadOnly, Owner::Root),
+            ("/path/to/a", Permission::ReadOnly, Owner::Root),
+            ("/path/to/a/value", Permission::ReadWrite, Owner::User),
+        ];
+
+        assert_eq!(resolved_items.len(), expected_results.len());
+
+        for (index, expected) in expected_results.into_iter().enumerate() {
+            let resolved_item = &resolved_items[index];
+            assert_eq!(
+                (
+                    resolved_item
+                        .value
+                        .to_string_lossy()
+                        .replace("\\", "/")
+                        .as_ref(),
+                    resolved_item.permission,
+                    resolved_item.owner
+                ),
+                expected
+            );
+        }
+    }
+
+    #[test]
     fn test_get_workspace_with_unresolved_value_success() {
         let config = crate::ConfigBuilder::new()
             .add_path_item(PathItemArgs {
