@@ -223,40 +223,60 @@ pub fn get_workspace(
         path_fields: &crate::types::PathAttributes,
         index: usize,
         parent_children_map: &std::collections::HashMap<usize, Vec<usize>>,
+        cache: &mut std::collections::HashMap<usize, bool>,
     ) -> bool {
-        // Rules for deferring:
-        //  - If the path has a variable token, then it may be deferred if explicitly marked as
-        //    deferred, or cannot be resolved.
-        //  - If the path does not have a variable token, and is not explicitly marked as deferred,
-        //    then it is not deferred.
-        //  - If any of the child paths for this item are not deferred using the above rules, then
-        //    it is not deferred.
-        //  - Otherwise, it is deferred.
+        if let Some(deferred) = cache.get(&index) {
+            return *deferred;
+        }
 
-        let child_indexes = parent_children_map.get(&index);
+        fn inner_is_deferred(
+            config: &crate::Config,
+            item: &crate::types::PathItem,
+            path_fields: &crate::types::PathAttributes,
+            index: usize,
+            parent_children_map: &std::collections::HashMap<usize, Vec<usize>>,
+            cache: &mut std::collections::HashMap<usize, bool>,
+        ) -> bool {
+            // Rules for deferring:
+            //  - If the path has a variable token, then it may be deferred if explicitly marked as
+            //    deferred, or cannot be resolved.
+            //  - If the path does not have a variable token, and is not explicitly marked as deferred,
+            //    then it is not deferred.
+            //  - If any of the child paths for this item are not deferred using the above rules, then
+            //    it is not deferred.
+            //  - Otherwise, it is deferred.
+            let child_indexes = parent_children_map.get(&index);
 
-        if let Some(child_indexes) = child_indexes {
-            for child_index in child_indexes.iter() {
-                let child_item = &config.items[*child_index];
-                let deferred = is_deferred(
-                    config,
-                    child_item,
-                    path_fields,
-                    *child_index,
-                    parent_children_map,
-                );
+            if let Some(child_indexes) = child_indexes {
+                for child_index in child_indexes.iter() {
+                    let child_item = &config.items[*child_index];
+                    let deferred = is_deferred(
+                        config,
+                        child_item,
+                        path_fields,
+                        *child_index,
+                        parent_children_map,
+                        cache,
+                    );
 
-                if !deferred {
-                    return false;
+                    if !deferred {
+                        return false;
+                    }
                 }
+            }
+
+            if item.path.has_variable_tokens() {
+                item.deferred || !item.path.is_resolved_by(path_fields)
+            } else {
+                item.deferred
             }
         }
 
-        if item.path.has_variable_tokens() {
-            item.deferred || !item.path.is_resolved_by(path_fields)
-        } else {
-            item.deferred
-        }
+        let result =
+            inner_is_deferred(config, item, path_fields, index, parent_children_map, cache);
+        cache.insert(index, result);
+
+        result
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -269,6 +289,7 @@ pub fn get_workspace(
         parent_children_map: &std::collections::HashMap<usize, Vec<usize>>,
         index_key_map: &std::collections::HashMap<usize, crate::FieldKey>,
         resolved_items: &mut Vec<crate::ResolvedPathItem>,
+        is_deferred_cache: &mut std::collections::HashMap<usize, bool>,
     ) -> Result<(), crate::Error> {
         if !item.path.is_resolved_by(path_fields) {
             return Ok(());
@@ -290,7 +311,14 @@ pub fn get_workspace(
         };
         let path_type = item.path_type;
         let key = index_key_map.get(&index).cloned();
-        let deferred = is_deferred(config, item, path_fields, index, parent_children_map);
+        let deferred = is_deferred(
+            config,
+            item,
+            path_fields,
+            index,
+            parent_children_map,
+            is_deferred_cache,
+        );
 
         let resolved_item = crate::ResolvedPathItem {
             key,
@@ -316,6 +344,7 @@ pub fn get_workspace(
                     parent_children_map,
                     index_key_map,
                     resolved_items,
+                    is_deferred_cache,
                 )?;
             }
         }
@@ -331,6 +360,7 @@ pub fn get_workspace(
         .iter()
         .map(|(k, v)| (*v, k.to_owned()))
         .collect::<std::collections::HashMap<_, _>>();
+    let mut is_deferred_cache = std::collections::HashMap::with_capacity(config.items.len());
 
     for (item, index) in queue.into_iter() {
         let key = index_key_map.get(&index).cloned();
@@ -352,6 +382,7 @@ pub fn get_workspace(
             &parent_children_map,
             &index_key_map,
             &mut resolved_items,
+            &mut is_deferred_cache,
         )?;
     }
 
