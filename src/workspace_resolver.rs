@@ -516,6 +516,7 @@ mod tests {
             ("/path/to/a/value", Permission::ReadWrite, Owner::User),
         ];
 
+        dbg!(&resolved_items);
         assert_eq!(resolved_items.len(), expected_results.len());
 
         for (index, expected) in expected_results.into_iter().enumerate() {
