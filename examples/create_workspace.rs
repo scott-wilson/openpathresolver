@@ -179,7 +179,7 @@ async fn main() {
     // {root}/path/a/value
     // {root}/path/b
     // {root}/path/b/value
-    // {root}/path/c  # The {not_specified} is not in the fields map, so it cannot be resolved.
+    // # The {not_specified} is not in the fields map, so it and its parent paths cannot be resolved.
     // {root}/path/d
     // {root}/path/d/012
     // ```

@@ -267,7 +267,7 @@ impl ConfigBuilder {
                     permission: crate::Permission::default(),
                     owner: crate::Owner::default(),
                     path_type: crate::PathType::default(),
-                    deferred: false,
+                    deferred: true,
                     metadata: std::collections::HashMap::new(),
                 });
 
@@ -289,7 +289,7 @@ impl ConfigBuilder {
                     permission: crate::Permission::default(),
                     owner: crate::Owner::default(),
                     path_type: crate::PathType::default(),
-                    deferred: false,
+                    deferred: true,
                     metadata: std::collections::HashMap::new(),
                 });
 
