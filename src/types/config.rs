@@ -133,24 +133,6 @@ impl ConfigBuilder {
         let mut parent_resolved_path_items_map = std::collections::BTreeMap::new();
         let mut visited_paths = std::collections::HashSet::new();
 
-        // Normalize all of the paths into the platform specific paths.
-        for item in self.items.values_mut() {
-            let old_path = item.path.to_string_lossy();
-            let mut new_path = String::with_capacity(old_path.len());
-
-            for character in old_path.chars() {
-                let character = if character == '\\' || character == '/' {
-                    std::path::MAIN_SEPARATOR
-                } else {
-                    character
-                };
-
-                new_path.push(character);
-            }
-
-            item.path = std::path::PathBuf::from(new_path);
-        }
-
         fn recursive_build_path<'a>(
             path_part: &'a std::path::Path,
             parent_key: &'a Option<FieldKey>,
@@ -211,6 +193,7 @@ impl ConfigBuilder {
 
         let mut key_path_map = std::collections::HashMap::new();
 
+        // Convert all of the path parts into full paths
         for (key, item) in self.items.iter() {
             let key = key.to_owned();
             let path = recursive_build_path(&item.path, &item.parent, &self.items).to_path_buf();
@@ -224,9 +207,20 @@ impl ConfigBuilder {
         }
 
         let mut key_path_map = std::collections::HashMap::new();
+        let mut path_metadata_map = std::collections::HashMap::new();
 
         for (key, item) in self.items.iter() {
             key_path_map.insert(key, &item.path);
+            path_metadata_map.insert(
+                &item.path,
+                (
+                    item.permission,
+                    item.owner,
+                    item.path_type,
+                    item.deferred,
+                    item.metadata.clone(),
+                ),
+            );
 
             let path: &std::path::Path = item.path.as_ref();
             let parent_path_items = parent_resolved_path_items_map
@@ -245,15 +239,16 @@ impl ConfigBuilder {
             parent_path_items.push(PathItem {
                 path: Tokens::new(&name)?,
                 parent: None,
-                permission: item.permission,
-                owner: item.owner,
-                path_type: item.path_type,
-                deferred: item.deferred,
-                metadata: item.metadata.clone(),
+                permission: crate::Permission::default(),
+                owner: crate::Owner::default(),
+                path_type: crate::PathType::default(),
+                deferred: true,
+                metadata: std::collections::HashMap::new(),
             });
 
             let mut path: &std::path::Path = item.path.as_ref();
 
+            // Walk up the path's ancestors and add the ancestors to the resolved path map.
             while let Some(parent) = path.parent() {
                 if visited_paths.contains(&Some(path)) {
                     path = parent;
@@ -296,6 +291,7 @@ impl ConfigBuilder {
                 .entry(None)
                 .or_insert(Vec::new());
 
+            // Add the root most item if it doesn't exist.
             if !visited_paths.contains(&None) {
                 let name = match path.file_name() {
                     Some(name) => name.to_string_lossy(),
@@ -316,6 +312,7 @@ impl ConfigBuilder {
         }
 
         let mut parent_index_map = std::collections::HashMap::new();
+        let mut index_path_map = std::collections::HashMap::new();
         let mut items: Vec<PathItem> = Vec::new();
         let mut item_map: std::collections::HashMap<FieldKey, usize> =
             std::collections::HashMap::new();
@@ -333,6 +330,7 @@ impl ConfigBuilder {
                     None => std::path::PathBuf::new(),
                 }
                 .join(parent_item.path.to_string());
+                index_path_map.insert(items.len(), path.clone());
                 parent_index_map.insert(Some(path), items.len());
                 items.push(parent_item);
             }
@@ -341,6 +339,19 @@ impl ConfigBuilder {
         for (key, path) in key_path_map {
             if let Some(parent_index) = parent_index_map.get(&Some(path.to_path_buf())) {
                 item_map.insert(key.clone(), *parent_index);
+            }
+        }
+
+        for (index, item) in items.iter_mut().enumerate() {
+            if let Some(path) = index_path_map.get(&index)
+                && let Some((permission, owner, path_type, deferred, metadata)) =
+                    path_metadata_map.remove(path)
+            {
+                item.permission = permission;
+                item.owner = owner;
+                item.path_type = path_type;
+                item.deferred = deferred;
+                item.metadata = metadata;
             }
         }
 

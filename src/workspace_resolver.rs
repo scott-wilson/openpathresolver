@@ -492,7 +492,7 @@ mod tests {
                 parent: Some("root".try_into().unwrap()),
                 permission: Permission::ReadWrite,
                 owner: Owner::User,
-                path_type: PathType::default(),
+                path_type: PathType::File,
                 deferred: false,
                 metadata: std::collections::HashMap::new(),
             })
@@ -509,14 +509,38 @@ mod tests {
         let resolved_items = get_workspace(&config, &fields).unwrap();
 
         let expected_results = [
-            ("/", Permission::Inherit, Owner::Inherit),
-            ("/path", Permission::Inherit, Owner::Inherit),
-            ("/path/to", Permission::ReadOnly, Owner::Root),
-            ("/path/to/a", Permission::ReadOnly, Owner::Root),
-            ("/path/to/a/value", Permission::ReadWrite, Owner::User),
+            (
+                "/",
+                Permission::Inherit,
+                Owner::Inherit,
+                PathType::Directory,
+            ),
+            (
+                "/path",
+                Permission::Inherit,
+                Owner::Inherit,
+                PathType::Directory,
+            ),
+            (
+                "/path/to",
+                Permission::ReadOnly,
+                Owner::Root,
+                PathType::Directory,
+            ),
+            (
+                "/path/to/a",
+                Permission::ReadOnly,
+                Owner::Root,
+                PathType::Directory,
+            ),
+            (
+                "/path/to/a/value",
+                Permission::ReadWrite,
+                Owner::User,
+                PathType::File,
+            ),
         ];
 
-        dbg!(&resolved_items);
         assert_eq!(resolved_items.len(), expected_results.len());
 
         for (index, expected) in expected_results.into_iter().enumerate() {
@@ -529,7 +553,8 @@ mod tests {
                         .replace("\\", "/")
                         .as_ref(),
                     resolved_item.permission,
-                    resolved_item.owner
+                    resolved_item.owner,
+                    resolved_item.path_type,
                 ),
                 expected
             );
