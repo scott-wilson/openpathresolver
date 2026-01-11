@@ -132,8 +132,7 @@ pub fn get_fields(
         part.path
             .draw_regex_pattern(&mut part_pattern, &config.resolvers)?;
         part_pattern.push('$');
-        // TODO: cache this line - building regexes are expensive.
-        let regex_pattern = regex::Regex::new(&part_pattern)?;
+        let regex_pattern = crate::cache::regex(&part_pattern)?;
         let path_part_str = path_part.to_string_lossy();
         let captures = match regex_pattern.captures(&path_part_str) {
             Some(captures) => captures,

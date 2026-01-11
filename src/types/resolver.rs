@@ -12,7 +12,7 @@ pub enum Resolver {
     )]
     String {
         /// The shape of a valid string.
-        pattern: Option<regex::Regex>,
+        pattern: Option<std::sync::Arc<regex::Regex>>,
     },
     /// This is an integer resolver.
     Integer {
@@ -44,7 +44,7 @@ impl Resolver {
 }
 
 fn serialize_regex<S: serde::Serializer>(
-    regex: &Option<regex::Regex>,
+    regex: &Option<std::sync::Arc<regex::Regex>>,
     serializer: S,
 ) -> Result<S::Ok, S::Error> {
     match regex {
@@ -55,10 +55,9 @@ fn serialize_regex<S: serde::Serializer>(
 
 fn deserialize_regex<'de, D: serde::Deserializer<'de>>(
     deserializer: D,
-) -> Result<Option<regex::Regex>, D::Error> {
+) -> Result<Option<std::sync::Arc<regex::Regex>>, D::Error> {
     let regex = match Option::<String>::deserialize(deserializer)? {
-        // TODO: Cache the compiled regex
-        Some(regex) => Some(regex::Regex::new(&regex).map_err(serde::de::Error::custom)?),
+        Some(regex) => Some(crate::cache::regex(&regex).map_err(serde::de::Error::custom)?),
         None => None,
     };
 

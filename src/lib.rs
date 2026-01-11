@@ -13,6 +13,7 @@
 #![deny(rustdoc::missing_crate_level_docs)]
 #![forbid(unsafe_code)]
 
+mod cache;
 mod error;
 mod path_resolver;
 mod types;

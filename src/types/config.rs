@@ -77,7 +77,7 @@ impl ConfigBuilder {
             key.try_into()?,
             Resolver::String {
                 pattern: match pattern {
-                    Some(pattern) => Some(regex::Regex::new(pattern)?),
+                    Some(pattern) => Some(crate::cache::regex(pattern)?),
                     None => None,
                 },
             },

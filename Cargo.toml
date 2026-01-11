@@ -20,6 +20,7 @@ include = [
 
 [dependencies]
 async-trait = "0.1.89"
+cached = "0.56.0"
 glob = "0.3.3"
 regex = "1.12.2"
 serde = { version = "1.0.228", features = ["derive", "rc"] }
