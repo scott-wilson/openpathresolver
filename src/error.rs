@@ -28,6 +28,7 @@ impl_from!(
     Error: std::io::Error => "IO Error.",
     Error: glob::GlobError => "Glob Error.",
     Error: glob::PatternError => "Glob Pattern Error.",
+    Error: tokio::task::JoinError => "Task Join Error.",
 );
 
 impl Error {

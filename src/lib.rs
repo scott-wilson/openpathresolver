@@ -11,8 +11,9 @@
 
 #![deny(missing_docs)]
 #![deny(rustdoc::missing_crate_level_docs)]
-#![deny(unsafe_code)]
+#![forbid(unsafe_code)]
 
+mod cache;
 mod error;
 mod path_resolver;
 mod types;

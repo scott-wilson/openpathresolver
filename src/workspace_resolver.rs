@@ -134,8 +134,7 @@ pub async fn create_workspace<Func: CreateWorkspaceIoFunction + Send + Sync + 's
         }
 
         while let Some(response) = workers_set.join_next().await {
-            // TODO: Don't use unwrap here.
-            response.unwrap()?;
+            response??;
         }
     }
 
@@ -218,6 +217,68 @@ pub fn get_workspace(
         };
     }
 
+    fn is_deferred(
+        config: &crate::Config,
+        item: &crate::types::PathItem,
+        path_fields: &crate::types::PathAttributes,
+        index: usize,
+        parent_children_map: &std::collections::HashMap<usize, Vec<usize>>,
+        cache: &mut std::collections::HashMap<usize, bool>,
+    ) -> bool {
+        if let Some(deferred) = cache.get(&index) {
+            return *deferred;
+        }
+
+        fn inner_is_deferred(
+            config: &crate::Config,
+            item: &crate::types::PathItem,
+            path_fields: &crate::types::PathAttributes,
+            index: usize,
+            parent_children_map: &std::collections::HashMap<usize, Vec<usize>>,
+            cache: &mut std::collections::HashMap<usize, bool>,
+        ) -> bool {
+            // Rules for deferring:
+            //  - If the path has a variable token, then it may be deferred if explicitly marked as
+            //    deferred, or cannot be resolved.
+            //  - If the path does not have a variable token, and is not explicitly marked as deferred,
+            //    then it is not deferred.
+            //  - If any of the child paths for this item are not deferred using the above rules, then
+            //    it is not deferred.
+            //  - Otherwise, it is deferred.
+            let child_indexes = parent_children_map.get(&index);
+
+            if let Some(child_indexes) = child_indexes {
+                for child_index in child_indexes.iter() {
+                    let child_item = &config.items[*child_index];
+                    let deferred = is_deferred(
+                        config,
+                        child_item,
+                        path_fields,
+                        *child_index,
+                        parent_children_map,
+                        cache,
+                    );
+
+                    if !deferred {
+                        return false;
+                    }
+                }
+            }
+
+            if item.path.has_variable_tokens() {
+                item.deferred || !item.path.is_resolved_by(path_fields)
+            } else {
+                item.deferred
+            }
+        }
+
+        let result =
+            inner_is_deferred(config, item, path_fields, index, parent_children_map, cache);
+        cache.insert(index, result);
+
+        result
+    }
+
     #[allow(clippy::too_many_arguments)]
     fn recursive_build_items(
         config: &crate::Config,
@@ -228,6 +289,7 @@ pub fn get_workspace(
         parent_children_map: &std::collections::HashMap<usize, Vec<usize>>,
         index_key_map: &std::collections::HashMap<usize, crate::FieldKey>,
         resolved_items: &mut Vec<crate::ResolvedPathItem>,
+        is_deferred_cache: &mut std::collections::HashMap<usize, bool>,
     ) -> Result<(), crate::Error> {
         if !item.path.is_resolved_by(path_fields) {
             return Ok(());
@@ -249,16 +311,14 @@ pub fn get_workspace(
         };
         let path_type = item.path_type;
         let key = index_key_map.get(&index).cloned();
-        let deferred = match parent_resolved_item.deferred {
-            true => {
-                if item.path.has_variable_tokens() && item.path.is_resolved_by(path_fields) {
-                    false
-                } else {
-                    item.deferred
-                }
-            }
-            false => false,
-        };
+        let deferred = is_deferred(
+            config,
+            item,
+            path_fields,
+            index,
+            parent_children_map,
+            is_deferred_cache,
+        );
 
         let resolved_item = crate::ResolvedPathItem {
             key,
@@ -284,6 +344,7 @@ pub fn get_workspace(
                     parent_children_map,
                     index_key_map,
                     resolved_items,
+                    is_deferred_cache,
                 )?;
             }
         }
@@ -299,6 +360,7 @@ pub fn get_workspace(
         .iter()
         .map(|(k, v)| (*v, k.to_owned()))
         .collect::<std::collections::HashMap<_, _>>();
+    let mut is_deferred_cache = std::collections::HashMap::with_capacity(config.items.len());
 
     for (item, index) in queue.into_iter() {
         let key = index_key_map.get(&index).cloned();
@@ -320,6 +382,7 @@ pub fn get_workspace(
             &parent_children_map,
             &index_key_map,
             &mut resolved_items,
+            &mut is_deferred_cache,
         )?;
     }
 
@@ -393,6 +456,17 @@ mod tests {
                 metadata: std::collections::HashMap::new(),
             })
             .unwrap()
+            .add_path_item(PathItemArgs {
+                key: "key4".try_into().unwrap(),
+                path: "/path/to/c".into(),
+                parent: None,
+                permission: Permission::default(),
+                owner: Owner::default(),
+                path_type: PathType::default(),
+                deferred: false,
+                metadata: std::collections::HashMap::new(),
+            })
+            .unwrap()
             .build()
             .unwrap();
 
@@ -404,8 +478,7 @@ mod tests {
         };
         let resolved_items = get_workspace(&config, &fields).unwrap();
 
-        assert_eq!(resolved_items.len(), 8);
-        for (index, expected) in [
+        let expected_paths = [
             "/",
             "/path",
             "/path/to",
@@ -413,11 +486,153 @@ mod tests {
             "/path/to/a/value",
             "/path/to/b",
             "/path/to/b/value",
+            "/path/to/c",
             "/path/to/value",
-        ]
-        .into_iter()
-        .enumerate()
-        {
+        ];
+
+        assert_eq!(resolved_items.len(), expected_paths.len());
+
+        for (index, expected) in expected_paths.into_iter().enumerate() {
+            assert_eq!(
+                resolved_items[index]
+                    .value
+                    .to_string_lossy()
+                    .replace("\\", "/"),
+                expected
+            );
+        }
+    }
+
+    #[test]
+    fn test_get_workspace_deferred_rules_success() {
+        let config = crate::ConfigBuilder::new()
+            .add_path_item(PathItemArgs {
+                key: "root".try_into().unwrap(),
+                path: "/path/to".into(),
+                parent: None,
+                permission: Permission::ReadOnly,
+                owner: Owner::Root,
+                path_type: PathType::default(),
+                deferred: true,
+                metadata: std::collections::HashMap::new(),
+            })
+            .unwrap()
+            .add_path_item(PathItemArgs {
+                key: "child".try_into().unwrap(),
+                path: "a/{thing}".into(),
+                parent: Some("root".try_into().unwrap()),
+                permission: Permission::ReadWrite,
+                owner: Owner::User,
+                path_type: PathType::File,
+                deferred: false,
+                metadata: std::collections::HashMap::new(),
+            })
+            .unwrap()
+            .build()
+            .unwrap();
+
+        let fields = {
+            let mut fields = crate::types::PathAttributes::new();
+            fields.insert("thing".try_into().unwrap(), "value".into());
+
+            fields
+        };
+        let resolved_items = get_workspace(&config, &fields).unwrap();
+
+        let expected_results = [
+            (
+                "/",
+                Permission::Inherit,
+                Owner::Inherit,
+                PathType::Directory,
+            ),
+            (
+                "/path",
+                Permission::Inherit,
+                Owner::Inherit,
+                PathType::Directory,
+            ),
+            (
+                "/path/to",
+                Permission::ReadOnly,
+                Owner::Root,
+                PathType::Directory,
+            ),
+            (
+                "/path/to/a",
+                Permission::ReadOnly,
+                Owner::Root,
+                PathType::Directory,
+            ),
+            (
+                "/path/to/a/value",
+                Permission::ReadWrite,
+                Owner::User,
+                PathType::File,
+            ),
+        ];
+
+        assert_eq!(resolved_items.len(), expected_results.len());
+
+        for (index, expected) in expected_results.into_iter().enumerate() {
+            let resolved_item = &resolved_items[index];
+            assert_eq!(
+                (
+                    resolved_item
+                        .value
+                        .to_string_lossy()
+                        .replace("\\", "/")
+                        .as_ref(),
+                    resolved_item.permission,
+                    resolved_item.owner,
+                    resolved_item.path_type,
+                ),
+                expected
+            );
+        }
+    }
+
+    #[test]
+    fn test_get_workspace_with_unresolved_value_success() {
+        let config = crate::ConfigBuilder::new()
+            .add_path_item(PathItemArgs {
+                key: "resolved".try_into().unwrap(),
+                path: "/path/to/a/{thing}".into(),
+                parent: None,
+                permission: Permission::default(),
+                owner: Owner::default(),
+                path_type: PathType::default(),
+                deferred: false,
+                metadata: std::collections::HashMap::new(),
+            })
+            .unwrap()
+            .add_path_item(PathItemArgs {
+                key: "unresolved".try_into().unwrap(),
+                path: "/path/to/b/{unresolved}".into(),
+                parent: None,
+                permission: Permission::default(),
+                owner: Owner::default(),
+                path_type: PathType::default(),
+                deferred: false,
+                metadata: std::collections::HashMap::new(),
+            })
+            .unwrap()
+            .build()
+            .unwrap();
+
+        let fields = {
+            let mut fields = crate::types::PathAttributes::new();
+            fields.insert("thing".try_into().unwrap(), "value".into());
+
+            fields
+        };
+        let resolved_items = get_workspace(&config, &fields).unwrap();
+
+        let expected_paths = ["/", "/path", "/path/to", "/path/to/a", "/path/to/a/value"];
+
+        assert_eq!(resolved_items.len(), expected_paths.len());
+
+        for (index, expected) in expected_paths.into_iter().enumerate() {
             assert_eq!(
                 resolved_items[index]
                     .value
