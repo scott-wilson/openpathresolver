@@ -134,8 +134,7 @@ pub async fn create_workspace<Func: CreateWorkspaceIoFunction + Send + Sync + 's
         }
 
         while let Some(response) = workers_set.join_next().await {
-            // TODO: Don't use unwrap here.
-            response.unwrap()?;
+            response??;
         }
     }
 
