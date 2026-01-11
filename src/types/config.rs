@@ -133,6 +133,24 @@ impl ConfigBuilder {
         let mut parent_resolved_path_items_map = std::collections::BTreeMap::new();
         let mut visited_paths = std::collections::HashSet::new();
 
+        // Normalize all of the paths into the platform specific paths.
+        for item in self.items.values_mut() {
+            let old_path = item.path.to_string_lossy();
+            let mut new_path = String::with_capacity(old_path.len());
+
+            for character in old_path.chars() {
+                let character = if character == '\\' || character == '/' {
+                    std::path::MAIN_SEPARATOR
+                } else {
+                    character
+                };
+
+                new_path.push(character);
+            }
+
+            item.path = std::path::PathBuf::from(new_path);
+        }
+
         fn recursive_build_path<'a>(
             path_part: &'a std::path::Path,
             parent_key: &'a Option<FieldKey>,
