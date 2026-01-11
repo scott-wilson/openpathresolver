@@ -254,10 +254,8 @@ pub fn get_workspace(
 
         if item.path.has_variable_tokens() {
             item.deferred || !item.path.is_resolved_by(path_fields)
-        } else if !item.deferred {
-            false
         } else {
-            true
+            item.deferred
         }
     }
 
