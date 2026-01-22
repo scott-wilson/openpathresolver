@@ -38,13 +38,13 @@ jobs:
         with:
           egress-policy: audit
 
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - uses: dtolnay/rust-toolchain@4305c38b25d97ef35a8ad1f985ccf2d2242004f2 # stable
       - uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2.8.2
         with:
           shared-key: lang-rust-${{runner.os}}
       - name: Install cargo-llvm-cov
-        uses: taiki-e/install-action@dfcb1ee29051d97c8d0f2d437199570008fd5612 # v2.65.15
+        uses: taiki-e/install-action@02b0f6e578e5f62f4c2e3b578ae0e1a01554138e # v2.67.4
         with:
           tool: cargo-llvm-cov
       - name: Run Cargo Clippy
