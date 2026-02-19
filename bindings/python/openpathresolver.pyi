@@ -8,7 +8,7 @@ import typing_extensions
 
 class Error(Exception): ...
 
-Resolvers: typing_extensions.TypeAlias = (
+Resolver: typing_extensions.TypeAlias = (
     IntegerResolver | StringResolver | EntityResolver
 )
 PathValue: typing_extensions.TypeAlias = int | str
@@ -22,7 +22,7 @@ MetadataValue: typing_extensions.TypeAlias = (
 class Config:
     def __init__(
         self,
-        resolvers: collections.abc.Mapping[str, Resolvers],
+        resolvers: collections.abc.Mapping[str, Resolver],
         path_items: collections.abc.Iterable[PathItem],
     ) -> None: ...
 
@@ -64,7 +64,7 @@ class ResolvedPathItem:
     def owner(self) -> Owner: ...
     def path_type(self) -> PathType: ...
     def deferred(self) -> bool: ...
-    def metadata(self) -> MetadataValue: ...
+    def metadata(self) -> dict[str, MetadataValue]: ...
 
 class PathType(enum.Enum):
     Directory = enum.auto()
