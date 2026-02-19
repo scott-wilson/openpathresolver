@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/) and this
 project adheres to [Semantic Versioning](http://semver.org/).
 
-## [unreleased]
+## [0.1.2] - 2026-02-19
 
 ### Changed
 
@@ -25,6 +25,8 @@ project adheres to [Semantic Versioning](http://semver.org/).
 ### Added
 
 - Initial release
+
+[0.1.2]: https://github.com/scott-wilson/openpathresolver/compare/v0.1.1...v0.1.2
 
 [0.1.1]: https://github.com/scott-wilson/openpathresolver/compare/v0.1.0...v0.1.1
 
