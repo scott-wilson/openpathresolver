@@ -74,9 +74,7 @@ impl<'py> FromPyObject<'_, 'py> for TemplateValue {
     type Error = PyErr;
 
     fn extract(value: Borrowed<'_, 'py, PyAny>) -> Result<Self, Self::Error> {
-        if let Ok(value) = value.extract::<Self>() {
-            Ok(value)
-        } else if value.is_none() {
+        if value.is_none() {
             let inner = base_openpathresolver::TemplateValue::None;
             Ok(Self { inner })
         } else if let Ok(value) = value.extract::<bool>() {
@@ -158,9 +156,7 @@ impl<'py> FromPyObject<'_, 'py> for MetadataValue {
     type Error = PyErr;
 
     fn extract(value: Borrowed<'_, 'py, PyAny>) -> Result<Self, Self::Error> {
-        if let Ok(value) = value.extract::<Self>() {
-            Ok(value)
-        } else if value.is_none() {
+        if value.is_none() {
             let inner = base_openpathresolver::MetadataValue::None;
             Ok(Self { inner })
         } else if let Ok(value) = value.extract::<bool>() {
