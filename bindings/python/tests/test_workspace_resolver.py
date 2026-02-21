@@ -169,7 +169,7 @@ def test_create_workspace_regression_segfault(
             openpathresolver.Permission.Inherit,
             openpathresolver.Owner.Inherit,
             openpathresolver.PathType.Directory,
-            False,
+            False,  # noqa: FBT003
             {},
         ),
         openpathresolver.PathItem(
@@ -179,7 +179,7 @@ def test_create_workspace_regression_segfault(
             openpathresolver.Permission.Inherit,
             openpathresolver.Owner.Inherit,
             openpathresolver.PathType.Directory,
-            False,
+            False,  # noqa: FBT003
             {},
         ),
         openpathresolver.PathItem(
@@ -189,7 +189,7 @@ def test_create_workspace_regression_segfault(
             openpathresolver.Permission.Inherit,
             openpathresolver.Owner.Inherit,
             openpathresolver.PathType.Directory,
-            False,
+            False,  # noqa: FBT003
             {},
         ),
         openpathresolver.PathItem(
@@ -199,7 +199,7 @@ def test_create_workspace_regression_segfault(
             openpathresolver.Permission.Inherit,
             openpathresolver.Owner.Inherit,
             openpathresolver.PathType.Directory,
-            False,
+            False,  # noqa: FBT003
             {},
         ),
         openpathresolver.PathItem(
@@ -209,7 +209,7 @@ def test_create_workspace_regression_segfault(
             openpathresolver.Permission.Inherit,
             openpathresolver.Owner.Inherit,
             openpathresolver.PathType.File,
-            False,
+            False,  # noqa: FBT003
             {"skip": True},
         ),
         openpathresolver.PathItem(
@@ -219,7 +219,7 @@ def test_create_workspace_regression_segfault(
             openpathresolver.Permission.Inherit,
             openpathresolver.Owner.Inherit,
             openpathresolver.PathType.Directory,
-            False,
+            False,  # noqa: FBT003
             {},
         ),
     ]
