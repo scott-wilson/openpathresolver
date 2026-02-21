@@ -603,4 +603,30 @@ mod tests {
             std::path::PathBuf::from("/parent/path/child/path")
         );
     }
+
+    #[test]
+    fn test_config_get_item_metadata_success() {
+        let config = ConfigBuilder::new()
+            .add_path_item(PathItemArgs {
+                key: "item".try_into().unwrap(),
+                path: "path".into(),
+                parent: None,
+                permission: Permission::default(),
+                owner: Owner::default(),
+                path_type: PathType::default(),
+                deferred: false,
+                metadata: [("test".to_string(), crate::MetadataValue::Integer(123))]
+                    .into_iter()
+                    .collect(),
+            })
+            .unwrap()
+            .build()
+            .unwrap();
+
+        let item = config.get_item(&"item".try_into().unwrap()).unwrap();
+        assert_eq!(
+            item[1].metadata.get("test"),
+            Some(&crate::MetadataValue::Integer(123))
+        );
+    }
 }

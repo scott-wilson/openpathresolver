@@ -31,8 +31,8 @@ async def test_create_workspace_success(
                 openpathresolver.Owner.Inherit,
                 openpathresolver.PathType.Directory,
                 deferred=False,
-                metadata={},
-            )
+                metadata={"test": 123},
+            ),
         ],
     )
 
@@ -42,6 +42,9 @@ async def test_create_workspace_success(
         resolved_path_item: openpathresolver.ResolvedPathItem,
     ) -> None:
         resolved_path_item.value().mkdir(exist_ok=True, parents=True)
+
+        if resolved_path_item.key() == "path":
+            assert resolved_path_item.metadata()["test"] == 123  # noqa: PLR2004
 
     await openpathresolver.create_workspace(
         config,

@@ -319,6 +319,7 @@ pub fn get_workspace(
             parent_children_map,
             is_deferred_cache,
         );
+        let metadata = item.metadata.clone();
 
         let resolved_item = crate::ResolvedPathItem {
             key,
@@ -327,7 +328,7 @@ pub fn get_workspace(
             owner,
             path_type,
             deferred,
-            metadata: std::collections::HashMap::new(),
+            metadata,
         };
 
         let child_indexes = parent_children_map.get(&index);
@@ -705,6 +706,71 @@ mod tests {
                 _template_fields: std::sync::Arc<crate::types::TemplateAttributes>,
                 _path_item: crate::ResolvedPathItem,
             ) -> Result<(), crate::Error> {
+                Ok(())
+            }
+        }
+
+        create_workspace(
+            std::sync::Arc::new(config),
+            &path_fields,
+            std::sync::Arc::new(template_fields),
+            Func,
+        )
+        .await
+        .unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_create_workspace_metadata_success() {
+        let config = crate::ConfigBuilder::new()
+            .add_path_item(PathItemArgs {
+                key: "key".try_into().unwrap(),
+                path: "/path/to/{thing}".into(),
+                parent: None,
+                permission: Permission::default(),
+                owner: Owner::default(),
+                path_type: PathType::default(),
+                deferred: false,
+                metadata: [("test".to_string(), crate::MetadataValue::Integer(123))]
+                    .into_iter()
+                    .collect(),
+            })
+            .unwrap()
+            .build()
+            .unwrap();
+
+        let path_fields = {
+            let mut fields = crate::types::PathAttributes::new();
+            fields.insert("thing".try_into().unwrap(), "value".into());
+
+            fields
+        };
+        let template_fields = {
+            let mut fields = crate::types::TemplateAttributes::new();
+            fields.insert("thing".try_into().unwrap(), "value".into());
+
+            fields
+        };
+
+        struct Func;
+
+        #[async_trait::async_trait]
+        impl CreateWorkspaceIoFunction for Func {
+            async fn call(
+                &self,
+                _config: std::sync::Arc<crate::Config>,
+                _template_fields: std::sync::Arc<crate::types::TemplateAttributes>,
+                path_item: crate::ResolvedPathItem,
+            ) -> Result<(), crate::Error> {
+                if let Some(key) = path_item.key
+                    && key.as_str() == "key"
+                {
+                    assert_eq!(
+                        path_item.metadata.get("test"),
+                        Some(&crate::MetadataValue::Integer(123))
+                    );
+                }
+
                 Ok(())
             }
         }
