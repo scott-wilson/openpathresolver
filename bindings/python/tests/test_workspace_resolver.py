@@ -227,8 +227,8 @@ def test_create_workspace_regression_segfault(
     config = openpathresolver.Config({}, path_items)
 
     async def io_function(
-        config: openpathresolver.Config,  # noqa: ARG001
-        template_args: collections.abc.Mapping[str, openpathresolver.TemplateValue],  # noqa: ARG001
+        config: openpathresolver.Config,
+        template_args: collections.abc.Mapping[str, openpathresolver.TemplateValue],
         resolved_path_item: openpathresolver.ResolvedPathItem,
     ) -> None:
         pass
