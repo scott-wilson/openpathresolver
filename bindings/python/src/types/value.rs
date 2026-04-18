@@ -1,4 +1,9 @@
-use pyo3::{IntoPyObjectExt, exceptions::PyTypeError, prelude::*};
+use pyo3::{
+    IntoPyObjectExt,
+    exceptions::PyTypeError,
+    prelude::*,
+    types::{PyBool, PyFloat, PyInt},
+};
 
 /// A value for a path.
 #[derive(Clone)]
@@ -159,13 +164,19 @@ impl<'py> FromPyObject<'_, 'py> for MetadataValue {
         if value.is_none() {
             let inner = base_openpathresolver::MetadataValue::None;
             Ok(Self { inner })
-        } else if let Ok(value) = value.extract::<bool>() {
+        } else if value.is_instance_of::<PyBool>()
+            && let Ok(value) = value.extract::<bool>()
+        {
             let inner = base_openpathresolver::MetadataValue::Bool(value);
             Ok(Self { inner })
-        } else if let Ok(value) = value.extract::<f64>() {
+        } else if value.is_instance_of::<PyFloat>()
+            && let Ok(value) = value.extract::<f64>()
+        {
             let inner = base_openpathresolver::MetadataValue::Float(value);
             Ok(Self { inner })
-        } else if let Ok(value) = value.extract::<i64>() {
+        } else if value.is_instance_of::<PyInt>()
+            && let Ok(value) = value.extract::<i64>()
+        {
             let inner = base_openpathresolver::MetadataValue::Integer(value);
             Ok(Self { inner })
         } else if let Ok(value) = value.extract::<String>() {
