@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/) and this
 project adheres to [Semantic Versioning](http://semver.org/).
 
+## [unreleased]
+
+### Changed
+
+- Fix the metadata not always returning the correct Python type.
+
 ## [0.1.4] - 2026-02-21
 
 ### Changed
