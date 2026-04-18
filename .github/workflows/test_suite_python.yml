@@ -39,16 +39,6 @@ jobs:
         python-version:
           - version: "3.9"
             freethreaded: false
-          - version: "3.10"
-            freethreaded: false
-          - version: "3.11"
-            freethreaded: false
-          - version: "3.12"
-            freethreaded: false
-          - version: "3.13"
-            freethreaded: false
-          - version: "3.13"
-            freethreaded: true
           - version: "3" # Latest version
             freethreaded: false
           - version: "3" # Latest version
