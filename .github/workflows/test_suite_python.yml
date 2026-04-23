@@ -71,9 +71,6 @@ jobs:
         with:
           enable-cache: true
           python-version: ${{ matrix.python-version }}
-      - name: TEST!!
-        run: |
-          ls -al .
       - name: Setup Python
         id: setup-python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
@@ -81,7 +78,7 @@ jobs:
           python-version-file: "bindings/python/.python-version"
           cache: "pip"
       - name: Python - Install dependencies
-        run: uv sync
+        run: uv sync --extra test
       - name: Lint with Ruff
         run: |
           uv run ruff check --output-format=github .
