@@ -78,7 +78,7 @@ jobs:
           python-version-file: "bindings/python/.python-version"
           cache: "pip"
       - name: Python - Install dependencies
-        run: uv sync --extra test
+        run: uv sync --extra test,docs
       - name: Lint with Ruff
         run: |
           uv run ruff check --output-format=github .
@@ -101,4 +101,4 @@ jobs:
           uv run examples/get_path.py
       - name: Run doc tests
         run: |
-          uv run sphinx -b=doctest docs/source docs/build
+          uv run sphinx-build -b=doctest docs/source docs/build
