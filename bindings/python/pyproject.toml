@@ -2,7 +2,7 @@
 name = "openpathresolver"
 description = "A simple path resolver framework"
 readme = "README-PYTHON.md"
-requires-python = "~=3.9"
+requires-python = ">=3.9,<4"
 license = { text = "MIT OR Apache-2.0" }
 authors = [{ name = "Scott Wilson", email = "scott@propersquid.com" }]
 classifiers = [
@@ -81,3 +81,11 @@ line-length = 88
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
+
+[tool.uv]
+cache-keys = [
+  { file = "pyproject.toml" },
+  { file = "src/**/*.rs" },
+  { file = "Cargo.toml" },
+  { file = "Cargo.lock" },
+]

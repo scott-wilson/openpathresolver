@@ -12,6 +12,8 @@ updates:
       cargo-dependencies:
         patterns:
           - "*"
+    cooldown:
+      default-days: 14
   - package-ecosystem: "github-actions"
     directory: "/"
     labels:
@@ -23,6 +25,8 @@ updates:
       github-actions:
         patterns:
           - "*"
+    cooldown:
+      default-days: 14
   - package-ecosystem: "gitsubmodule"
     directory: "/"
     labels:
@@ -34,6 +38,8 @@ updates:
       gitsubmodules-dependencies:
         patterns:
           - "*"
+    cooldown:
+      default-days: 14
 
   # Python Bindings
   - package-ecosystem: "pip"
@@ -47,6 +53,8 @@ updates:
       python-pip-dependencies:
         patterns:
           - "*"
+    cooldown:
+      default-days: 14
   - package-ecosystem: "cargo"
     directory: "/bindings/python"
     labels:
@@ -58,3 +66,5 @@ updates:
       python-cargo-dependencies:
         patterns:
           - "*"
+    cooldown:
+      default-days: 14

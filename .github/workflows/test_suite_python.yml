@@ -37,12 +37,14 @@ jobs:
           - windows-latest
           - macos-latest
         python-version:
-          - version: "3.9"
-            freethreaded: false
-          - version: "3" # Latest version
-            freethreaded: false
-          - version: "3" # Latest version
-            freethreaded: true
+          - "3.9"
+          - "3.10"
+          - "3.11"
+          - "3.12"
+          - "3.13"
+          - "3.13+freethreaded"
+          - "3.14"
+          - "3.14+freethreaded"
     runs-on: ${{matrix.os}}
     steps:
       - name: Harden Runner
@@ -64,38 +66,39 @@ jobs:
       - name: Run Cargo Deny
         uses: EmbarkStudios/cargo-deny-action@91bf2b620e09e18d6eb78b92e7861937469acedb # v2.0.17
         if: ${{ matrix.os == 'ubuntu-latest' }}
-      - name: Setup Python ${{matrix.python-version.version}} freethreaded=${{matrix.python-version.freethreaded}}
+      - name: Install uv - Python Version ${{ matrix.python-version }}
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          enable-cache: true
+          python-version: ${{ matrix.python-version }}
+      - name: Setup Python
         id: setup-python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
-          python-version: ${{matrix.python-version.version}}
-          freethreaded: ${{matrix.python-version.freethreaded}}
+          python-version-file: ".python-version"
           cache: "pip"
-      - name: Install dependencies
-        run: python -m pip install .[test,docs]
+      - name: Python - Install dependencies
+        run: uv sync
       - name: Lint with Ruff
         run: |
-          python -m ruff check --output-format=github .
+          uv run ruff check --output-format=github .
       - name: Format with Ruff
         run: |
-          python -m ruff format --check .
+          uv run ruff format --check .
       - name: Build Rust
         uses: PyO3/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b # v1.51.0
         with:
           # sccache: "true"
           manylinux: auto
           working-directory: bindings/python
-      - name: Prepare tests
-        run: |
-          python -m pip install openchecks --find-links target/wheels
       - name: Run tests
         run: |
-          python -m pytest --hypothesis-profile default -n=auto tests/
+          uv run pytest --hypothesis-profile default -n=auto tests/
       - name: Run examples
         run: |
-          python examples/create_workspace.py
-          python examples/find_paths.py
-          python examples/get_path.py
+          uv run examples/create_workspace.py
+          uv run examples/find_paths.py
+          uv run examples/get_path.py
       - name: Run doc tests
         run: |
-          python -m sphinx -b=doctest docs/source docs/build
+          uv run sphinx -b=doctest docs/source docs/build
